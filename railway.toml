@@ -1,0 +1,11 @@
+[build]
+dockerfile = "Dockerfile"
+
+[deploy]
+startCommand = "sh -c 'mkdir -p /data/repos /data/worktrees /data/logs && cd /data && exec bun /app/src/index.ts'"
+healthcheckPath = "/health"
+healthcheckTimeout = 10
+restartPolicyType = "always"
+
+[[volumes]]
+mountPath = "/data"

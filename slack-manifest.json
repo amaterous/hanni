@@ -1,0 +1,45 @@
+{
+  "_metadata": {
+    "major_version": 1,
+    "minor_version": 1
+  },
+  "display_information": {
+    "name": "hanni",
+    "description": "AI coding agent — mention me to create tickets, branches, and PRs autonomously",
+    "background_color": "#09090b"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "hanni",
+      "always_online": true
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "app_mentions:read",
+        "chat:write",
+        "files:read",
+        "users:read",
+        "channels:history",
+        "groups:history",
+        "reactions:write",
+        "users:write"
+      ]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "request_url": "https://YOUR_DOMAIN/slack/events",
+      "bot_events": [
+        "app_mention"
+      ]
+    },
+    "interactivity": {
+      "is_enabled": false
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}

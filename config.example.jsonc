@@ -1,0 +1,49 @@
+{
+  "agent": {
+    "name": "hanni"
+  },
+  "server": {
+    "port": 3460,
+    "webhookPath": "/webhook"
+  },
+  "linear": {
+    "webhookSecret": "<LINEAR_WEBHOOK_SECRET>",
+    "workspaces": {
+      "<WORKSPACE_ID>": {
+        "name": "MyWorkspace",
+        "apiKey": "<lin_api_xxx>", // Linear Personal API Token
+        "inReviewStateId": "<IN_REVIEW_STATE_ID>"
+      }
+    }
+  },
+  "repositories": [
+    {
+      "name": "my-repo",
+      "github": "user/my-repo",
+      "baseBranch": "main",
+      "linearWorkspaceId": "<WORKSPACE_ID>",
+      "projectKeys": ["My Project"]
+    }
+  ],
+  "provider": "claude",
+  "claude": {
+    "model": "opus",
+    "fallbackModel": "sonnet"
+  },
+  "paths": {
+    "repos": "./repos",
+    "worktrees": "./worktrees",
+    "logs": "./logs"
+  },
+  "slack": {
+    "workspaces": {
+      "<SLACK_TEAM_ID>": {
+        "name": "MyWork",
+        "botToken": "<xoxb-xxx>",
+        "signingSecret": "<xxx>",
+        "defaultLinearWorkspaceId": "<WORKSPACE_ID>",
+        "linearApiKey": "<lin_api_xxx>"
+      }
+    }
+  }
+}
