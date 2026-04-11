@@ -101,7 +101,7 @@ export function loadConfig(configPath = "./config.json", tokensPath = DEFAULT_TO
   const raw = readFileSync(configPath, "utf-8");
   const config: HanniConfig = JSON.parse(raw);
 
-  // Merge tokens.json if present (OpenAI / Vercel only)
+  // Merge tokens.json if present (Linear OAuth, OpenAI, Vercel)
   if (existsSync(tokensPath)) {
     const tokens = JSON.parse(readFileSync(tokensPath, "utf-8"));
     if (tokens.vercel?.token) {
@@ -112,6 +112,14 @@ export function loadConfig(configPath = "./config.json", tokensPath = DEFAULT_TO
     }
     if (tokens.openai?.oauth && config.openai) {
       config.openai.oauth = { ...config.openai.oauth, ...tokens.openai.oauth };
+    }
+    if (tokens.linear?.workspaces) {
+      for (const [wsId, wsTokens] of Object.entries(tokens.linear.workspaces) as [string, { accessToken?: string; refreshToken?: string }][]) {
+        if (config.linear.workspaces[wsId] && wsTokens) {
+          if (wsTokens.accessToken) config.linear.workspaces[wsId].accessToken = wsTokens.accessToken;
+          if (wsTokens.refreshToken) config.linear.workspaces[wsId].refreshToken = wsTokens.refreshToken;
+        }
+      }
     }
   }
 
@@ -147,7 +155,7 @@ export function saveConfig(config: HanniConfig, configPath = "./config.json") {
  * Save tokens to tokens.json. No-op when running from env vars.
  */
 export function saveTokens(config: HanniConfig, tokensPath = DEFAULT_TOKENS_PATH) {
-  const tokens: any = { vercel: {}, openai: {} };
+  const tokens: any = { vercel: {}, openai: {}, linear: { workspaces: {} } };
 
   if (config.vercel?.token) {
     tokens.vercel.token = config.vercel.token;
@@ -162,6 +170,14 @@ export function saveTokens(config: HanniConfig, tokensPath = DEFAULT_TOKENS_PATH
       expiresAt: config.openai.oauth.expiresAt,
       accountId: config.openai.oauth.accountId,
     };
+  }
+  for (const [wsId, ws] of Object.entries(config.linear.workspaces)) {
+    if (ws.accessToken || ws.refreshToken) {
+      tokens.linear.workspaces[wsId] = {
+        ...(ws.accessToken && { accessToken: ws.accessToken }),
+        ...(ws.refreshToken && { refreshToken: ws.refreshToken }),
+      };
+    }
   }
 
   writeFileSync(tokensPath, JSON.stringify(tokens, null, 2));

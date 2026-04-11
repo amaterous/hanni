@@ -3,12 +3,22 @@ set -euo pipefail
 
 # Deploy script for hanni on GCE
 # Usage: ./deploy.sh [command]
+#
+# Requires: infra/scripts/.env.deploy (copy from .env.deploy.example and fill in values)
 
-PROJECT="hanni-hosting-2025"
-ZONE="us-east1-b"
-INSTANCE="bro-runners-new"
-REMOTE_DIR="github-runners"
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ENV_FILE="$SCRIPT_DIR/.env.deploy"
+
+if [ ! -f "$ENV_FILE" ]; then
+  echo "Error: $ENV_FILE not found."
+  echo "Copy $SCRIPT_DIR/.env.deploy.example to $ENV_FILE and fill in your GCP values."
+  exit 1
+fi
+
+# shellcheck source=.env.deploy
+source "$ENV_FILE"
+
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 ssh_hanni() {
   gcloud compute ssh "$INSTANCE" --project="$PROJECT" --zone="$ZONE" --command="$1"

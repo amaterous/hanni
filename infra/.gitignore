@@ -2,3 +2,4 @@
 config.json
 tokens.json
 .env
+scripts/.env.deploy

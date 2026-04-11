@@ -67,6 +67,9 @@ export interface WorkspaceConfig {
   apiKey: string; // Linear Personal API Token
   inReviewStateId: string;
   viewerId?: string;
+  // OAuth tokens — stored in tokens.json, merged at runtime
+  accessToken?: string;
+  refreshToken?: string;
 }
 
 export interface RepositoryConfig {
