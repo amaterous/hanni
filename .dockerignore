@@ -1,0 +1,12 @@
+node_modules
+.git
+repos/
+worktrees/
+logs/
+config.json
+tokens.json
+.env
+infra/config.json
+infra/tokens.json
+infra/.env
+infra/terraform/

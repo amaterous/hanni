@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>hanni</title>
+<style>
+  :root {
+    --bg: #09090b; --surface: #18181b; --surface2: #27272a;
+    --border: #3f3f46; --text: #fafafa; --text2: #a1a1aa; --text3: #71717a;
+    --accent: #8b5cf6; --accent2: #7c3aed;
+    --green: #22c55e; --green-bg: rgba(34,197,94,0.1);
+    --yellow: #eab308; --yellow-bg: rgba(234,179,8,0.1);
+    --red: #ef4444; --red-bg: rgba(239,68,68,0.1);
+    --blue: #3b82f6; --blue-bg: rgba(59,130,246,0.1);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); }
+
+  /* Layout */
+  .shell { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+  nav { background: var(--surface); border-right: 1px solid var(--border); padding: 24px 0; display: flex; flex-direction: column; }
+  main { padding: 32px 40px; max-width: 960px; }
+
+  /* Nav */
+  .logo { padding: 0 20px 24px; display: flex; align-items: center; gap: 10px; }
+  .logo-icon { width: 32px; height: 32px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .logo-text { font-size: 18px; font-weight: 700; }
+  .logo-text span { color: var(--text3); font-weight: 400; font-size: 12px; display: block; margin-top: 1px; }
+  .nav-section { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 1.5px; padding: 16px 20px 6px; }
+  .nav-item { padding: 8px 20px; font-size: 14px; color: var(--text2); cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.15s; }
+  .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+  .nav-item.active { color: var(--text); background: rgba(139,92,246,0.1); border-right: 2px solid var(--accent); }
+  .nav-item .icon { width: 18px; text-align: center; }
+  .nav-spacer { flex: 1; }
+  .nav-status { padding: 16px 20px; border-top: 1px solid var(--border); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .status-dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+  /* Page header */
+  .page-header { margin-bottom: 28px; }
+  .page-header h1 { font-size: 22px; font-weight: 600; }
+  .page-header p { color: var(--text3); font-size: 14px; margin-top: 4px; }
+
+  /* Cards */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 32px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .stat-card .label { font-size: 12px; color: var(--text3); margin-bottom: 4px; }
+  .stat-card .value { font-size: 28px; font-weight: 700; }
+
+  /* Table */
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 24px; }
+  .table-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+  .table-header h2 { font-size: 15px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 18px; background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border); font-weight: 500; }
+  td { padding: 12px 18px; font-size: 13px; border-bottom: 1px solid rgba(63,63,70,0.5); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* Badges */
+  .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 500; }
+  .badge.green { background: var(--green-bg); color: var(--green); }
+  .badge.yellow { background: var(--yellow-bg); color: var(--yellow); }
+  .badge.red { background: var(--red-bg); color: var(--red); }
+  .badge.blue { background: var(--blue-bg); color: var(--blue); }
+  .badge.gray { background: rgba(161,161,170,0.1); color: var(--text3); }
+  .pk { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; background: var(--surface2); color: var(--text2); margin-right: 4px; }
+
+  /* Buttons */
+  .btn { padding: 7px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: var(--surface2); color: var(--text); }
+  .btn-danger { background: transparent; color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+  .btn-danger:hover { background: var(--red-bg); }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+  /* Forms */
+  .input { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 7px 12px; border-radius: 6px; font-size: 13px; width: 100%; transition: border 0.15s; }
+  .input:focus { outline: none; border-color: var(--accent); }
+  .input::placeholder { color: var(--text3); }
+  select.input { appearance: none; cursor: pointer; }
+
+  /* Modal */
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(4px); }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; width: 480px; max-width: 90vw; }
+  .modal h3 { font-size: 16px; margin-bottom: 16px; }
+  .form-group { margin-bottom: 14px; }
+  .form-group label { font-size: 12px; color: var(--text2); display: block; margin-bottom: 4px; }
+  .form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+  /* Session card */
+  .session-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin-bottom: 10px; }
+  .session-row { display: flex; align-items: center; gap: 12px; }
+  .session-id { font-weight: 600; font-size: 15px; }
+  .session-meta { color: var(--text3); font-size: 12px; }
+  .session-branch { font-family: 'SF Mono', monospace; font-size: 12px; color: var(--text2); margin-top: 6px; }
+
+  /* Empty state */
+  .empty { text-align: center; padding: 40px; color: var(--text3); }
+  .empty .icon { font-size: 32px; margin-bottom: 8px; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface); border: 1px solid var(--green); color: var(--green); padding: 10px 18px; border-radius: 8px; font-size: 13px; z-index: 200; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+
+  /* Pages */
+  .page { display: none; }
+  .page.active { display: block; }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <nav>
+    <div class="logo">
+      <div class="logo-icon">H</div>
+      <div class="logo-text" id="navName">hanni<span>AI Agent</span></div>
+    </div>
+    <div class="nav-section">Overview</div>
+    <div class="nav-item active" onclick="showPage('dashboard')"><span class="icon">◉</span> Dashboard</div>
+    <div class="nav-item" onclick="showPage('sessions')"><span class="icon">⟳</span> Sessions</div>
+    <div class="nav-item" onclick="showPage('logs')"><span class="icon">▤</span> Logs</div>
+    <div class="nav-section">Settings</div>
+    <div class="nav-item" onclick="showPage('repos')"><span class="icon">◈</span> Repositories</div>
+    <div class="nav-item" onclick="showPage('workspaces')"><span class="icon">◐</span> Workspaces</div>
+    <div class="nav-item" onclick="showPage('setup')"><span class="icon">✦</span> New Project</div>
+    <div class="nav-item" onclick="showPage('general')"><span class="icon">⚙</span> General</div>
+    <div class="nav-spacer"></div>
+    <div class="nav-status"><span class="status-dot on"></span><span style="font-size:13px;color:var(--text2)">Online</span></div>
+  </nav>
+
+  <main>
+    <!-- Dashboard -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header"><h1>Dashboard</h1></div>
+      <div class="grid">
+        <div class="stat-card"><div class="label">Repositories</div><div class="value" id="stat-repos">-</div></div>
+        <div class="stat-card"><div class="label">Active Sessions</div><div class="value" id="stat-active">-</div></div>
+        <div class="stat-card"><div class="label">Total Sessions</div><div class="value" id="stat-total">-</div></div>
+        <div class="stat-card"><div class="label">Workspaces</div><div class="value" id="stat-ws">-</div></div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-header"><h2>Recent Sessions</h2></div>
+        <div id="dash-sessions"></div>
+      </div>
+    </div>
+
+    <!-- Sessions -->
+    <div class="page" id="page-sessions">
+      <div class="page-header"><h1>Sessions</h1><p>Active and completed Claude sessions</p></div>
+      <div id="sessions-list"></div>
+    </div>
+
+    <!-- Repositories -->
+    <div class="page" id="page-repos">
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:center">
+        <div><h1>Repositories</h1><p>Linked GitHub repos and Linear project routing</p></div>
+        <button class="btn btn-primary" onclick="openAddRepo()">+ Add Repository</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>GitHub</th><th>Workspace</th><th>Project Keys</th><th></th></tr></thead>
+          <tbody id="repos-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Workspaces -->
+    <div class="page" id="page-workspaces">
+      <div class="page-header"><h1>Workspaces</h1><p>Linear workspace configuration</p></div>
+      <div id="workspaces-list"></div>
+    </div>
+
+    <!-- General -->
+    <div class="page" id="page-general">
+      <div class="page-header"><h1>General</h1><p>Agent settings</p></div>
+      <div class="table-wrap" style="padding:20px">
+        <div class="form-group">
+          <label>Agent Display Name</label>
+          <input class="input" id="agentNameInput" style="max-width:240px" onchange="updateAgent()" />
+        </div>
+        <div class="form-group">
+          <label>Model Provider</label>
+          <div style="font-size:14px;color:var(--text2)" id="modelInfo"></div>
+        </div>
+        <div class="form-group">
+          <label>Webhook Path</label>
+          <div style="font-size:14px;color:var(--text2)" id="webhookInfo"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Logs -->
+    <div class="page" id="page-logs">
+      <div class="page-header"><h1>Logs</h1><p>Claude session logs per ticket</p></div>
+      <div id="logs-list"></div>
+      <div id="log-detail" style="display:none">
+        <button class="btn btn-ghost" onclick="closeLogDetail()" style="margin-bottom:12px">← Back</button>
+        <div id="log-detail-content"></div>
+      </div>
+    </div>
+
+    <!-- New Project Setup -->
+    <div class="page" id="page-setup">
+      <div class="page-header"><h1>New Project Setup</h1><p>Linearプロジェクト作成 + GitHubリポジトリ紐づけを一括で行う</p></div>
+      <div class="table-wrap" style="padding:24px;max-width:520px">
+        <div class="form-group">
+          <label>Project Name</label>
+          <input class="input" id="setupName" placeholder="e.g. My New App" />
+        </div>
+        <div class="form-group">
+          <label>GitHub Repository</label>
+          <input class="input" id="setupGithub" placeholder="e.g. user/my-new-app" />
+        </div>
+        <div class="form-group">
+          <label>Workspace</label>
+          <select class="input" id="setupWorkspace"></select>
+        </div>
+        <div class="form-group">
+          <label>Base Branch</label>
+          <input class="input" id="setupBranch" value="main" />
+        </div>
+        <div class="form-group">
+          <label>Subdirectory (optional, for monorepos)</label>
+          <input class="input" id="setupSubdir" placeholder="e.g. apps/web" />
+        </div>
+        <div class="form-actions" style="justify-content:flex-start">
+          <button class="btn btn-primary" onclick="setupProject()">Create Project & Link Repo</button>
+        </div>
+        <div id="setupResult" style="margin-top:16px"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Add Repo Modal -->
+<div class="modal-bg" id="addRepoModal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <h3>Add Repository</h3>
+    <div class="form-group"><label>Name</label><input class="input" id="newName" placeholder="e.g. iq-test" /></div>
+    <div class="form-group"><label>GitHub</label><input class="input" id="newGithub" placeholder="e.g. user/repo" /></div>
+    <div class="form-group"><label>Workspace</label><select class="input" id="newWorkspace"></select></div>
+    <div class="form-group"><label>Project Keys</label><input class="input" id="newKeys" placeholder="comma separated" /></div>
+    <div class="form-group"><label>Subdirectory (optional)</label><input class="input" id="newSubdir" placeholder="e.g. apps/my-app" /></div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="document.getElementById('addRepoModal').style.display='none'">Cancel</button>
+      <button class="btn btn-primary" onclick="addRepo()">Add</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let config = null, sessions = [];
+
+async function load() {
+  [config, sessions] = await Promise.all([
+    fetch('/api/config').then(r => r.json()),
+    fetch('/api/sessions').then(r => r.json()),
+  ]);
+  render();
+}
+
+function render() {
+  const wsMap = Object.fromEntries(config.workspaces.map(w => [w.id, w.name]));
+  document.getElementById('navName').innerHTML = `${config.agent.name}<span>AI Agent</span>`;
+
+  // Dashboard stats
+  const active = sessions.filter(s => s.status === 'running').length;
+  document.getElementById('stat-repos').textContent = config.repositories.length;
+  document.getElementById('stat-active').textContent = active;
+  document.getElementById('stat-total').textContent = sessions.length;
+  document.getElementById('stat-ws').textContent = config.workspaces.length;
+
+  // Dashboard recent sessions
+  const dashEl = document.getElementById('dash-sessions');
+  if (sessions.length === 0) {
+    dashEl.innerHTML = '<div class="empty"><div class="icon">◉</div>No sessions yet</div>';
+  } else {
+    dashEl.innerHTML = `<table><thead><tr><th>Issue</th><th>Repo</th><th>Status</th><th>Branch</th><th>Started</th></tr></thead><tbody>${
+      sessions.slice(0, 10).map(s => `<tr>
+        <td style="font-weight:600">${s.issueIdentifier}</td>
+        <td>${s.repo}</td>
+        <td><span class="badge ${s.status === 'running' ? 'green' : s.status === 'idle' ? 'yellow' : 'gray'}">${s.status}</span></td>
+        <td style="font-family:monospace;font-size:12px;color:var(--text2)">${s.branch}</td>
+        <td style="color:var(--text3);font-size:12px">${s.createdAt ? new Date(s.createdAt).toLocaleString('ja-JP') : '-'}</td>
+      </tr>`).join('')
+    }</tbody></table>`;
+  }
+
+  // Sessions page
+  const sessEl = document.getElementById('sessions-list');
+  if (sessions.length === 0) {
+    sessEl.innerHTML = '<div class="empty"><div class="icon">◉</div>No sessions yet<br><span style="font-size:12px">Sessions will appear here when tickets are assigned</span></div>';
+  } else {
+    sessEl.innerHTML = sessions.map(s => `
+      <div class="session-card">
+        <div class="session-row">
+          <span class="session-id">${s.issueIdentifier}</span>
+          <span class="badge ${s.status === 'running' ? 'green' : s.status === 'idle' ? 'yellow' : 'gray'}">${s.status}</span>
+          <span class="badge blue">${s.repo}</span>
+          <span class="session-meta" style="margin-left:auto">${s.createdAt ? new Date(s.createdAt).toLocaleString('ja-JP') : ''}</span>
+        </div>
+        <div class="session-branch">${s.branch}</div>
+      </div>
+    `).join('');
+  }
+
+  // Repos
+  document.getElementById('repos-body').innerHTML = config.repositories.map(r => `<tr>
+    <td style="font-weight:500">${r.name}</td>
+    <td style="font-family:monospace;font-size:12px;color:var(--text2)">${r.github}</td>
+    <td><span class="badge blue">${wsMap[r.linearWorkspaceId] || '?'}</span></td>
+    <td>${(r.projectKeys || []).map(k => `<span class="pk">${k}</span>`).join('') || '<span style="color:var(--text3)">catch-all</span>'}</td>
+    <td style="text-align:right"><button class="btn btn-danger btn-sm" onclick="deleteRepo('${r.name}')">Delete</button></td>
+  </tr>`).join('');
+
+  // Workspaces
+  document.getElementById('workspaces-list').innerHTML = config.workspaces.map(ws => `
+    <div class="table-wrap" style="padding:18px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <span style="font-weight:600;font-size:15px">${ws.name}</span>
+        <span class="badge ${ws.hasToken ? 'green' : 'red'}">${ws.hasToken ? 'Connected' : 'No Token'}</span>
+        <span style="font-family:monospace;font-size:11px;color:var(--text3)">${ws.id}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label>Viewer ID</label>
+          <div style="font-size:13px;color:var(--text2);font-family:monospace">${ws.viewerId || 'Not resolved'}</div>
+        </div>
+        <div class="form-group">
+          <label>In Review State ID</label>
+          <input class="input" value="${ws.inReviewStateId || ''}" placeholder="Paste state ID"
+            onchange="updateWorkspace('${ws.id}', this.value)" />
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  // Workspace selects
+  const wsOptions = config.workspaces.map(ws => `<option value="${ws.id}">${ws.name}</option>`).join('');
+  document.getElementById('newWorkspace').innerHTML = wsOptions;
+  document.getElementById('setupWorkspace').innerHTML = wsOptions;
+
+  // General
+  document.getElementById('agentNameInput').value = config.agent.name;
+  const provider = config.provider || 'claude';
+  if (provider === 'openai' && config.openai) {
+    document.getElementById('modelInfo').textContent = `openai: ${config.openai.model}`;
+  } else {
+    document.getElementById('modelInfo').textContent = `claude: ${config.claude.model} (fallback: ${config.claude.fallbackModel})`;
+  }
+  document.getElementById('webhookInfo').textContent = `Port ${config.server.port}${config.server.webhookPath}`;
+}
+
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (name === 'logs') { closeLogDetail(); loadLogs(); }
+}
+
+function openAddRepo() { document.getElementById('addRepoModal').style.display = 'flex'; }
+
+async function addRepo() {
+  const name = document.getElementById('newName').value.trim();
+  const github = document.getElementById('newGithub').value.trim();
+  const wsId = document.getElementById('newWorkspace').value;
+  const keys = document.getElementById('newKeys').value.trim().split(',').map(k => k.trim()).filter(Boolean);
+  const subdir = document.getElementById('newSubdir').value.trim() || undefined;
+  if (!name || !github) { toast('Name and GitHub are required'); return; }
+  await fetch('/api/repositories', { method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ name, github, baseBranch: 'main', linearWorkspaceId: wsId, projectKeys: keys, subdir }) });
+  document.getElementById('addRepoModal').style.display = 'none';
+  ['newName','newGithub','newKeys','newSubdir'].forEach(id => document.getElementById(id).value = '');
+  await load();
+  toast('Repository added');
+}
+
+async function deleteRepo(name) {
+  if (!confirm('Delete ' + name + '?')) return;
+  await fetch('/api/repositories/' + encodeURIComponent(name), { method: 'DELETE' });
+  await load();
+  toast('Repository deleted');
+}
+
+async function updateWorkspace(id, stateId) {
+  await fetch('/api/workspaces/' + id, { method: 'PUT', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ inReviewStateId: stateId }) });
+  toast('Workspace updated');
+}
+
+async function updateAgent() {
+  const name = document.getElementById('agentNameInput').value.trim();
+  if (!name) return;
+  await fetch('/api/agent', { method: 'PUT', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ name }) });
+  config.agent.name = name;
+  document.getElementById('navName').innerHTML = `${name}<span>AI Agent</span>`;
+  toast('Agent name updated');
+}
+
+async function setupProject() {
+  const name = document.getElementById('setupName').value.trim();
+  const github = document.getElementById('setupGithub').value.trim();
+  const workspaceId = document.getElementById('setupWorkspace').value;
+  const baseBranch = document.getElementById('setupBranch').value.trim() || 'main';
+  const subdir = document.getElementById('setupSubdir').value.trim() || undefined;
+  const resultEl = document.getElementById('setupResult');
+  if (!name || !github) { toast('Project name and GitHub are required'); return; }
+  resultEl.innerHTML = '<span style="color:var(--text3)">Setting up...</span>';
+  try {
+    const res = await fetch('/api/setup-project', { method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ name, github, workspaceId, baseBranch, subdir }) });
+    const data = await res.json();
+    if (data.ok) {
+      resultEl.innerHTML = `<span class="badge green" style="font-size:13px;padding:6px 12px">✓ Linear project "${data.project}" created & repo "${data.repo}" linked</span>`;
+      ['setupName','setupGithub','setupSubdir'].forEach(id => document.getElementById(id).value = '');
+      await load();
+    } else {
+      resultEl.innerHTML = `<span class="badge red" style="font-size:13px;padding:6px 12px">Error: ${data.error}</span>`;
+    }
+  } catch (err) {
+    resultEl.innerHTML = `<span class="badge red" style="font-size:13px;padding:6px 12px">Error: ${err}</span>`;
+  }
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// === Logs ===
+let logsData = [];
+
+async function loadLogs() {
+  logsData = await fetch('/api/logs').then(r => r.json());
+  renderLogs();
+}
+
+function renderLogs() {
+  const el = document.getElementById('logs-list');
+  if (!logsData.length) {
+    el.innerHTML = '<div class="empty"><div class="icon">▤</div>No logs yet</div>';
+    return;
+  }
+  el.innerHTML = logsData.map(t => {
+    const latest = t.sessions[0];
+    const totalCost = t.sessions.reduce((sum, s) => sum + (s.costUsd || 0), 0);
+    return `
+      <div class="session-card" style="cursor:pointer" onclick="showLogDetail('${t.ticket}')">
+        <div class="session-row">
+          <span class="session-id">${t.ticket}</span>
+          <span class="badge blue">${t.sessions.length} session${t.sessions.length > 1 ? 's' : ''}</span>
+          <span class="badge gray">$${totalCost.toFixed(2)}</span>
+          <span class="session-meta" style="margin-left:auto">${latest?.timestamp ? new Date(Number(latest.timestamp)).toLocaleString('ja-JP') : ''}</span>
+        </div>
+        ${latest?.result ? `<div style="color:var(--text2);font-size:12px;margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:700px">${latest.result.split('\n')[0]}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+async function showLogDetail(ticket) {
+  const data = await fetch('/api/logs/' + encodeURIComponent(ticket)).then(r => r.json());
+  document.getElementById('logs-list').style.display = 'none';
+  document.getElementById('log-detail').style.display = 'block';
+
+  document.getElementById('log-detail-content').innerHTML = `
+    <h2 style="margin-bottom:16px">${data.ticket}</h2>
+    ${data.sessions.map((s, i) => `
+      <div class="table-wrap" style="margin-bottom:12px;padding:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-weight:600">Session ${data.sessions.length - i}</span>
+          <span class="badge gray">${s.model}</span>
+          <span class="badge blue">$${(s.costUsd || 0).toFixed(2)}</span>
+          <span class="badge gray">${Math.round((s.durationMs || 0) / 1000)}s</span>
+          <span class="badge gray">${s.turns} turns</span>
+          <span class="session-meta" style="margin-left:auto">${s.timestamp ? new Date(Number(s.timestamp)).toLocaleString('ja-JP') : ''}</span>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:13px;color:var(--text);white-space:pre-wrap;max-height:400px;overflow-y:auto;line-height:1.6">${escapeHtml(s.result || '(no output)')}</div>
+      </div>
+    `).join('')}
+  `;
+}
+
+function closeLogDetail() {
+  document.getElementById('logs-list').style.display = '';
+  document.getElementById('log-detail').style.display = 'none';
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+load();
+loadLogs();
+setInterval(async () => {
+  sessions = await fetch('/api/sessions').then(r => r.json());
+  render();
+}, 5000);
+</script>
+</body>
+</html>

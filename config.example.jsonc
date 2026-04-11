@@ -1,0 +1,63 @@
+{
+  "agent": {
+    "name": "hanni"
+  },
+  "server": {
+    "port": 3460,
+    "webhookPath": "/webhook"
+  },
+  "linear": {
+    "webhookSecret": "<LINEAR_WEBHOOK_SECRET>",
+    "workspaces": {
+      "<WORKSPACE_ID>": {
+        "name": "MyWorkspace",
+        "apiKey": "<lin_api_xxx>", // Linear Personal API Token
+        "inReviewStateId": "<IN_REVIEW_STATE_ID>"
+      }
+    }
+  },
+  "repositories": [
+    {
+      "name": "my-repo",
+      "github": "user/my-repo",
+      "baseBranch": "main",
+      "linearWorkspaceId": "<WORKSPACE_ID>",
+      "projectKeys": ["My Project"]
+    }
+  ],
+  "provider": "claude",
+  "claude": {
+    "model": "opus",
+    "fallbackModel": "sonnet"
+  },
+  "paths": {
+    "repos": "./repos",
+    "worktrees": "./worktrees",
+    "logs": "./logs"
+  },
+  "schedule": {
+    "jobs": [
+      {
+        "name": "hanni-news",              // ジョブ識別子（重複チェックファイル名に使用）
+        "utcHour": 3,                      // UTC 3:00 = JST 12:00
+        "utcMinute": 0,
+        "slackWorkspaceId": "<SLACK_TEAM_ID>",
+        "channel": "<CHANNEL_ID>",
+        "repo": "hanni-news",              // repositories の name と一致させる
+        "message": "今日のニュースを配信して",
+        "initMessage": "📰 ニュース配信中〜" // 省略時: "⏰ 実行中〜"
+      }
+    ]
+  },
+  "slack": {
+    "workspaces": {
+      "<SLACK_TEAM_ID>": {
+        "name": "MyWork",
+        "botToken": "<xoxb-xxx>",
+        "signingSecret": "<xxx>",
+        "defaultLinearWorkspaceId": "<WORKSPACE_ID>",
+        "linearApiKey": "<lin_api_xxx>"
+      }
+    }
+  }
+}

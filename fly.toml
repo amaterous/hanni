@@ -1,0 +1,44 @@
+# hanni - Fly.io deployment configuration
+# https://fly.io/docs/reference/configuration/
+
+app = "hanni"
+primary_region = "nrt" # Tokyo
+
+[build]
+dockerfile = "Dockerfile"
+
+[env]
+NODE_ENV = "production"
+
+[processes]
+app = "sh -c 'mkdir -p /data/repos /data/worktrees /data/logs && cd /data && exec bun /app/src/index.ts'"
+
+[http_service]
+internal_port = 3460
+force_https = true
+auto_stop_machines = false # 常時起動（webhook 受信が必要なため）
+auto_start_machines = true
+min_machines_running = 1
+processes = ["app"]
+
+[[http_service.checks]]
+interval = "30s"
+timeout = "5s"
+grace_period = "10s"
+method = "GET"
+path = "/health"
+
+[[vm]]
+size = "shared-cpu-2x"
+memory = "2048mb"
+
+[mounts]
+source = "hanni_data"
+destination = "/data"
+# 永続化される内容:
+#   /data/config.json   - 設定ファイル
+#   /data/tokens.json   - OAuth トークン
+#   /data/sessions.json - セッション状態
+#   /data/repos/        - clone 済みリポジトリ
+#   /data/worktrees/    - アクションごとの作業領域
+#   /data/logs/         - ログ

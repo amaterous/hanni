@@ -1,0 +1,38 @@
+services:
+  hanni:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+    ports:
+      - "3460:3460"
+      - "80:80"
+      - "443:443"
+    environment:
+      - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}
+      - GH_TOKEN=${GH_TOKEN}
+      - HANNI_DOMAIN=${HANNI_DOMAIN:-}
+    volumes:
+      - ./config.json:/opt/hanni/config.json
+      - ./tokens.json:/opt/hanni/tokens.json
+      - hanni-repos:/opt/hanni/repos
+      - hanni-worktrees:/opt/hanni/worktrees
+      - hanni-logs:/opt/hanni/logs
+      - hanni-claude:/home/hanni/.claude
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3460/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+volumes:
+  hanni-repos:
+  hanni-worktrees:
+  hanni-logs:
+  hanni-claude:
