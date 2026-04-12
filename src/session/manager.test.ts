@@ -1,19 +1,13 @@
-import { describe, it, expect, beforeEach, mock, afterAll } from "bun:test";
+import { describe, it, expect, beforeAll, beforeEach, afterAll, mock } from "bun:test";
 import { mock as bunMock } from "bun:test";
+import { constants as fsConstants } from "node:fs";
 
-// ── mocks ────────────────────────────────────────────────────────────────────
+// ── mock function instances (module-level so resetMocks() can reference them) ─
 
 const mockExistsSync = mock(() => false);
 const mockReadFileSync = mock(() => "{}");
 const mockWriteFileSync = mock(() => {});
 const mockMkdirSync = mock(() => {});
-
-bunMock.module("fs", () => ({
-  existsSync: mockExistsSync,
-  readFileSync: mockReadFileSync,
-  writeFileSync: mockWriteFileSync,
-  mkdirSync: mockMkdirSync,
-}));
 
 const mockCreateComment = mock(async () => {});
 const mockPostAgentActivity = mock(async () => {});
@@ -22,41 +16,22 @@ const MockLinearClient = mock(() => ({
   postAgentActivity: mockPostAgentActivity,
 }));
 
-bunMock.module("../linear/client", () => ({
-  LinearClient: MockLinearClient,
-}));
-
 const mockEnsureRepo = mock(async () => "/repos/myrepo");
-bunMock.module("../git/repo-manager", () => ({
-  ensureRepo: mockEnsureRepo,
-}));
-
 const mockCreateWorktree = mock(async () => ({
   worktreePath: "/worktrees/abc",
   branchName: "hanni/feature-branch",
 }));
-bunMock.module("../git/worktree", () => ({
-  createWorktree: mockCreateWorktree,
-}));
-
 const mockRouteToRepository = mock(() => null);
-bunMock.module("../routing/router", () => ({
-  routeToRepository: mockRouteToRepository,
-}));
 
 const mockRunModelSession = mock(async () => ({
   sessionId: "sess-123",
+  success: true,
   costUsd: 0.05,
+  durationMs: 500,
   resultText: "Done",
-}));
-bunMock.module("./runner", () => ({
-  runModelSession: mockRunModelSession,
 }));
 
 const mockPushAndCreatePR = mock(async () => ({ prUrl: null }));
-bunMock.module("../post-session/pr-creator", () => ({
-  pushAndCreatePR: mockPushAndCreatePR,
-}));
 
 // orchestration-prompt is NOT mocked — real pure functions are used to avoid
 // module-mock bleed into src/session/orchestration-prompt.test.ts
@@ -67,13 +42,51 @@ const mockLog = {
   error: mock(() => {}),
   debug: mock(() => {}),
 };
-bunMock.module("../utils/logger", () => ({
-  createLogger: mock(() => mockLog),
-}));
 
-// ── import after mocks ────────────────────────────────────────────────────────
+// ── register module mocks + import in beforeAll ───────────────────────────────
+// Registering mock.module inside beforeAll (not at module-load time) prevents
+// the ./runner mock from leaking into runner.test.ts's module-level imports,
+// which would cause runner.test.ts to capture the spy rather than the real fn.
 
-const { SessionManager } = await import("./manager");
+let SessionManager: Awaited<typeof import("./manager")>["SessionManager"];
+
+beforeAll(async () => {
+  bunMock.module("fs", () => ({
+    existsSync: mockExistsSync,
+    readFileSync: mockReadFileSync,
+    writeFileSync: mockWriteFileSync,
+    mkdirSync: mockMkdirSync,
+    constants: fsConstants,
+  }));
+
+  bunMock.module("../linear/client", () => ({
+    LinearClient: MockLinearClient,
+  }));
+
+  bunMock.module("../git/repo-manager", () => ({
+    ensureRepo: mockEnsureRepo,
+  }));
+
+  bunMock.module("../git/worktree", () => ({
+    createWorktree: mockCreateWorktree,
+  }));
+
+  bunMock.module("../routing/router", () => ({
+    routeToRepository: mockRouteToRepository,
+  }));
+
+  // No module mock needed for the session runner — DI via constructor is used instead.
+
+  bunMock.module("../post-session/pr-creator", () => ({
+    pushAndCreatePR: mockPushAndCreatePR,
+  }));
+
+  bunMock.module("../utils/logger", () => ({
+    createLogger: mock(() => mockLog),
+  }));
+
+  ({ SessionManager } = await import("./manager"));
+});
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -148,7 +161,7 @@ describe("SessionManager", () => {
     it("starts with empty sessions when file does not exist", () => {
       resetMocks();
       mockExistsSync.mockImplementation(() => false);
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       expect(sm.getSessions().size).toBe(0);
     });
 
@@ -166,7 +179,7 @@ describe("SessionManager", () => {
           },
         }),
       );
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       expect(sm.getSessions().size).toBe(1);
     });
 
@@ -183,7 +196,7 @@ describe("SessionManager", () => {
           },
         }),
       );
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       const session = sm.getSessions().get("YUN-2");
       expect(session?.status).toBe("idle");
     });
@@ -193,7 +206,7 @@ describe("SessionManager", () => {
       mockExistsSync.mockImplementation(() => true);
       mockReadFileSync.mockImplementation(() => "INVALID JSON{{{");
       // Should not throw
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       expect(sm.getSessions().size).toBe(0);
     });
   });
@@ -201,7 +214,7 @@ describe("SessionManager", () => {
   describe("hasSession", () => {
     it("returns false when no sessions exist", () => {
       resetMocks();
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       expect(sm.hasSession("issue-1")).toBe(false);
     });
 
@@ -213,7 +226,7 @@ describe("SessionManager", () => {
           "YUN-1": { sessionId: "s1", status: "idle", issueId: "issue-1", createdAt: "2025-01-01T00:00:00Z" },
         }),
       );
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       expect(sm.hasSession("issue-1")).toBe(true);
     });
 
@@ -225,7 +238,7 @@ describe("SessionManager", () => {
           "YUN-1": { sessionId: "s1", status: "idle", issueId: "issue-1", createdAt: "2025-01-01T00:00:00Z" },
         }),
       );
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       expect(sm.hasSession("unknown-id")).toBe(false);
     });
   });
@@ -233,7 +246,7 @@ describe("SessionManager", () => {
   describe("getSessionBySlackThread", () => {
     it("returns undefined when no sessions match", () => {
       resetMocks();
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       expect(sm.getSessionBySlackThread("C123", "1234.5678")).toBeUndefined();
     });
 
@@ -250,7 +263,7 @@ describe("SessionManager", () => {
           },
         }),
       );
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       const found = sm.getSessionBySlackThread("C123", "1234.5678");
       expect(found).toBeDefined();
       expect(found?.slackThreadKey).toBe("C123:1234.5678");
@@ -260,7 +273,7 @@ describe("SessionManager", () => {
   describe("getLinearClient", () => {
     it("returns a LinearClient for known workspace", () => {
       resetMocks();
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       const client = sm.getLinearClient("ws1");
       expect(client).toBeDefined();
       expect(MockLinearClient).toHaveBeenCalled();
@@ -268,13 +281,13 @@ describe("SessionManager", () => {
 
     it("throws for unknown workspace", () => {
       resetMocks();
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       expect(() => sm.getLinearClient("unknown")).toThrow("Unknown workspace: unknown");
     });
 
     it("uses apiKey for LinearClient", () => {
       resetMocks();
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       sm.getLinearClient("ws1");
       expect(MockLinearClient).toHaveBeenCalledWith("lin_key");
     });
@@ -283,6 +296,7 @@ describe("SessionManager", () => {
   describe("handleNewIssue", () => {
     it("returns null when MAX_CONCURRENT reached", async () => {
       resetMocks();
+      process.env.MAX_CONCURRENT_SESSIONS = "2";
       const config = makeConfig();
       const repo = config.repositories[0];
       mockRouteToRepository.mockImplementation(() => repo);
@@ -292,7 +306,7 @@ describe("SessionManager", () => {
       const hangPromise = new Promise<void>((res) => { resolveHang = res; });
       mockRunModelSession.mockImplementation(() => hangPromise.then(() => ({ sessionId: "s", costUsd: 0, resultText: "" })));
 
-      const sm = new SessionManager(config);
+      const sm = new SessionManager(config, mockRunModelSession);
 
       // Kick off 2 sessions (MAX_CONCURRENT = 2) without awaiting
       sm.handleNewIssue(makeIssue({ id: "i1", identifier: "YUN-1" }), "ws1");
@@ -303,12 +317,13 @@ describe("SessionManager", () => {
       expect(result).toBeNull();
 
       resolveHang!();
+      delete process.env.MAX_CONCURRENT_SESSIONS;
     });
 
     it("returns null when no repo found", async () => {
       resetMocks();
       mockRouteToRepository.mockImplementation(() => null);
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       const result = await sm.handleNewIssue(makeIssue(), "ws1");
       expect(result).toBeNull();
     });
@@ -318,7 +333,7 @@ describe("SessionManager", () => {
       const config = makeConfig();
       const overrideRepo = { ...config.repositories[0], name: "override-repo" };
 
-      const sm = new SessionManager(config);
+      const sm = new SessionManager(config, mockRunModelSession);
       const result = await sm.handleNewIssue(makeIssue(), "ws1", undefined, overrideRepo);
 
       expect(result).not.toBeNull();
@@ -336,7 +351,7 @@ describe("SessionManager", () => {
         resultText: "Done!\n```\n__RESULT__\nPR: https://github.com/owner/myrepo/pull/1\nBRANCH: hanni/feature-branch\n```",
       }));
 
-      const sm = new SessionManager(config);
+      const sm = new SessionManager(config, mockRunModelSession);
       const result = await sm.handleNewIssue(makeIssue(), "ws1");
 
       expect(result).not.toBeNull();
@@ -349,7 +364,7 @@ describe("SessionManager", () => {
       const config = makeConfig();
       mockRouteToRepository.mockImplementation(() => config.repositories[0]);
 
-      const sm = new SessionManager(config);
+      const sm = new SessionManager(config, mockRunModelSession);
       await sm.handleNewIssue(makeIssue(), "ws1");
 
       expect(mockWriteFileSync).toHaveBeenCalled();
@@ -359,7 +374,7 @@ describe("SessionManager", () => {
   describe("handleComment", () => {
     it("does nothing when no session found for issue", async () => {
       resetMocks();
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       await sm.handleComment("unknown-issue", "body", "user-1", "ws1");
       expect(mockRunModelSession).not.toHaveBeenCalled();
     });
@@ -380,7 +395,7 @@ describe("SessionManager", () => {
         }),
       );
 
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       // viewer-1 is the viewerId in ws1 config
       await sm.handleComment("issue-1", "body", "viewer-1", "ws1");
       expect(mockRunModelSession).not.toHaveBeenCalled();
@@ -398,7 +413,7 @@ describe("SessionManager", () => {
       const config = makeConfig();
       mockRouteToRepository.mockImplementation(() => config.repositories[0]);
 
-      const sm = new SessionManager(config);
+      const sm = new SessionManager(config, mockRunModelSession);
       // Start handleNewIssue without awaiting — session status becomes "running"
       sm.handleNewIssue(makeIssue({ id: "issue-1", identifier: "YUN-1" }), "ws1");
 
@@ -426,7 +441,7 @@ describe("SessionManager", () => {
         }),
       );
 
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       await sm.handleComment("issue-1", "fix the bug", "other-user", "ws1");
 
       expect(mockRunModelSession).toHaveBeenCalledTimes(1);
@@ -456,7 +471,7 @@ describe("SessionManager", () => {
         resultText: "Here is the answer",
       }));
 
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       await sm.handleComment("issue-1", "tell me something", "other-user", "ws1");
 
       expect(mockCreateComment).toHaveBeenCalledWith("issue-1", "Here is the answer");
@@ -479,13 +494,13 @@ describe("SessionManager", () => {
       );
 
       let callCount = 0;
-      mockRunModelSession.mockImplementation(async (config, opts) => {
+      mockRunModelSession.mockImplementation(async (_config, opts) => {
         callCount++;
         if (callCount === 1) throw new Error("session not found");
-        return { sessionId: "new-session", costUsd: 0.01, resultText: "Fresh start" };
+        return { sessionId: "new-session", success: true, durationMs: 0, costUsd: 0.01, resultText: "Fresh start" };
       });
 
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       await sm.handleComment("issue-1", "hello", "other-user", "ws1");
 
       expect(callCount).toBe(2);
@@ -516,7 +531,7 @@ describe("SessionManager", () => {
         prUrl: "https://github.com/owner/myrepo/pull/42",
       }));
 
-      const sm = new SessionManager(config);
+      const sm = new SessionManager(config, mockRunModelSession);
       await sm.handleComment("issue-1", "push please", "other-user", "ws1");
 
       // Should have created two comments: result + PR URL
@@ -536,7 +551,7 @@ describe("SessionManager", () => {
         hangPromise.then(() => ({ sessionId: "s", costUsd: 0, resultText: "" })),
       );
 
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       // Start runAction without awaiting — session status becomes "running"
       sm.runAction({ message: "task", slackThread: { channel: "C123", threadTs: "1234.5678" } });
 
@@ -551,6 +566,7 @@ describe("SessionManager", () => {
 
     it("returns busy message when MAX_CONCURRENT reached", async () => {
       resetMocks();
+      process.env.MAX_CONCURRENT_SESSIONS = "2";
 
       let resolveHang: () => void;
       const hangPromise = new Promise<void>((res) => { resolveHang = res; });
@@ -558,7 +574,7 @@ describe("SessionManager", () => {
         hangPromise.then(() => ({ sessionId: "s", costUsd: 0, resultText: "" })),
       );
 
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
 
       // Fill up capacity
       sm.runAction({ message: "task1", slackThread: { channel: "C1", threadTs: "t1" } });
@@ -571,6 +587,7 @@ describe("SessionManager", () => {
 
       expect(result.resultText).toContain("いっぱいいっぱい");
       resolveHang!();
+      delete process.env.MAX_CONCURRENT_SESSIONS;
     });
 
     it("runs session without repo (scratch directory)", async () => {
@@ -581,7 +598,7 @@ describe("SessionManager", () => {
         resultText: "All done",
       }));
 
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       const result = await sm.runAction({
         message: "just answer this question",
         slackThread: { channel: "C999", threadTs: "9999.0000" },
@@ -597,7 +614,7 @@ describe("SessionManager", () => {
       const config = makeConfig();
       const repo = config.repositories[0];
 
-      const sm = new SessionManager(config);
+      const sm = new SessionManager(config, mockRunModelSession);
       await sm.runAction({
         message: "code task",
         repo,
@@ -611,7 +628,7 @@ describe("SessionManager", () => {
     it("passes linearApiKey as MCP server config", async () => {
       resetMocks();
 
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       await sm.runAction({
         message: "create a ticket",
         slackThread: { channel: "C123", threadTs: "1111.2222" },
@@ -629,7 +646,7 @@ describe("SessionManager", () => {
         throw new Error("Claude exploded");
       });
 
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       const result = await sm.runAction({
         message: "something",
         slackThread: { channel: "C123", threadTs: "1111.2222" },
@@ -647,7 +664,7 @@ describe("SessionManager", () => {
         resultText: "Clean result\n```\n__RESULT__\nTICKET: YUN-99\nBRANCH: hanni/yun-99-fix\nPR: https://github.com/owner/repo/pull/99\n```",
       }));
 
-      const sm = new SessionManager(makeConfig());
+      const sm = new SessionManager(makeConfig(), mockRunModelSession);
       const result = await sm.runAction({
         message: "fix issue YUN-99",
         slackThread: { channel: "C123", threadTs: "1111.2222" },
@@ -662,7 +679,8 @@ describe("SessionManager", () => {
   });
 });
 
-// Restore all module mocks so they don't bleed into other test files
+// Restore module mocks (fs, linear/client, etc.) so they don't bleed into other test files
 afterAll(() => {
   mock.restore();
 });
+

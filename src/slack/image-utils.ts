@@ -56,6 +56,10 @@ export async function downloadSlackImage(
       const fb = Buffer.from(await fallback.arrayBuffer());
       const fbMagic = fb.slice(0, 4).toString("hex");
       log.info(`url_private for ${file.id}: ${fb.length} bytes, magic=${fbMagic}`);
+      if (fb.length < 3 || fb[0] !== 0xFF || fb[1] !== 0xD8 || fb[2] !== 0xFF) {
+        log.error(`File ${file.id}: both thumb and url_private returned non-JPEG (magic: ${fbMagic}) — Slack auth error or unsupported format`);
+        return null;
+      }
       writeFileSync(safePath, fb);
       return safePath;
     }

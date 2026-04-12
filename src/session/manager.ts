@@ -6,7 +6,7 @@ import { LinearClient } from "../linear/client";
 import { ensureRepo } from "../git/repo-manager";
 import { createWorktree } from "../git/worktree";
 import { routeToRepository } from "../routing/router";
-import { runModelSession } from "./runner";
+import { runModelSession, type RunModelSessionFn } from "./runner";
 import { pushAndCreatePR } from "../post-session/pr-creator";
 import { updateTicketAfterSession } from "../post-session/ticket-updater";
 import { buildOrchestrationPrompt, parseResultMetadata } from "./orchestration-prompt";
@@ -14,15 +14,24 @@ import { createLogger } from "../utils/logger";
 import { DEFAULT_MAX_CONCURRENT_SESSIONS } from "../constants";
 
 const log = createLogger("session");
-const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT_SESSIONS ?? String(DEFAULT_MAX_CONCURRENT_SESSIONS), 10);
 
 export class SessionManager {
   private sessions = new Map<string, SessionInfo>();
   private running = 0;
   private persistPath: string;
+  private readonly maxConcurrent: number;
+  private readonly _runModelSession: RunModelSessionFn;
 
-  constructor(private config: HanniConfig) {
+  constructor(
+    private config: HanniConfig,
+    _runSessionOverride?: RunModelSessionFn,
+  ) {
+    this.maxConcurrent = parseInt(
+      process.env.MAX_CONCURRENT_SESSIONS ?? String(DEFAULT_MAX_CONCURRENT_SESSIONS),
+      10,
+    );
     this.persistPath = join(config.paths.logs, "sessions.json");
+    this._runModelSession = _runSessionOverride ?? runModelSession;
     this.loadFromDisk();
   }
 
@@ -63,8 +72,8 @@ export class SessionManager {
       return null;
     }
 
-    if (this.running >= MAX_CONCURRENT) {
-      log.warn(`Max concurrent sessions (${MAX_CONCURRENT}) reached, skipping ${issue.identifier}`);
+    if (this.running >= this.maxConcurrent) {
+      log.warn(`Max concurrent sessions (${this.maxConcurrent}) reached, skipping ${issue.identifier}`);
       return null;
     }
 
@@ -139,7 +148,7 @@ export class SessionManager {
       // Try to resume, but fall back to a fresh session if the conversation is gone (e.g. after restart)
       let result;
       try {
-        result = await runModelSession(this.config, {
+        result = await this._runModelSession(this.config, {
           prompt: commentBody,
           cwd: sessionInfo.worktreePath,
           model: this.config.claude.model,
@@ -150,7 +159,7 @@ export class SessionManager {
         });
       } catch (resumeErr) {
         log.warn(`${sessionInfo.issueIdentifier}: resume failed, starting fresh session: ${resumeErr}`);
-        result = await runModelSession(this.config, {
+        result = await this._runModelSession(this.config, {
           prompt: commentBody,
           cwd: sessionInfo.worktreePath,
           model: this.config.claude.model,
@@ -232,8 +241,8 @@ export class SessionManager {
       return { costUsd: 0, resultText: "まだ前のタスクが実行中だよ〜 終わるまで待ってね！" };
     }
 
-    if (this.running >= MAX_CONCURRENT) {
-      log.warn(`Max concurrent sessions (${MAX_CONCURRENT}) reached`);
+    if (this.running >= this.maxConcurrent) {
+      log.warn(`Max concurrent sessions (${this.maxConcurrent}) reached`);
       return { costUsd: 0, resultText: "今いっぱいいっぱいだから、ちょっと待ってね〜" };
     }
 
@@ -297,7 +306,7 @@ export class SessionManager {
       }
 
       // Run Claude with full tooling
-      const result = await runModelSession(this.config, {
+      const result = await this._runModelSession(this.config, {
         prompt,
         cwd,
         model: this.config.claude.model,
@@ -414,7 +423,7 @@ export class SessionManager {
     }
 
     // Run Claude with full tooling (same as Slack flow)
-    const result = await runModelSession(this.config, {
+    const result = await this._runModelSession(this.config, {
       prompt,
       cwd,
       model: this.config.claude.model,

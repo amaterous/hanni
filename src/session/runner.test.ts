@@ -1,12 +1,8 @@
-import { describe, it, expect, mock, beforeEach } from "bun:test";
+import { describe, it, expect, beforeEach } from "bun:test";
+import { runModelSession } from "./runner";
 
-let mockRunClaudeSessionImpl: (params: any) => Promise<any>;
-
-mock.module("./claude-runner", () => ({
-  runClaudeSession: (params: any) => mockRunClaudeSessionImpl(params),
-}));
-
-const { runModelSession } = await import("./runner");
+// Tests inject a mock runner via the optional _runSession parameter, avoiding
+// mock.module() and the cross-file module-cache interference it causes.
 
 const defaultResult = {
   sessionId: "sess-1",
@@ -17,16 +13,9 @@ const defaultResult = {
 };
 
 describe("runModelSession", () => {
-  beforeEach(() => {
-    mockRunClaudeSessionImpl = async () => defaultResult;
-  });
-
   it("delegates all params to runClaudeSession and returns its result", async () => {
     let received: any;
-    mockRunClaudeSessionImpl = async (params) => {
-      received = params;
-      return defaultResult;
-    };
+    const mockRunner = async (params: any) => { received = params; return defaultResult; };
 
     const params = {
       prompt: "do thing",
@@ -37,17 +26,14 @@ describe("runModelSession", () => {
       issueIdentifier: "YUN-1",
     };
 
-    const result = await runModelSession({} as any, params);
+    const result = await runModelSession({} as any, params, mockRunner);
     expect(received).toEqual(params);
     expect(result).toEqual(defaultResult);
   });
 
   it("ignores _config — does not pass it to runClaudeSession", async () => {
     let received: any;
-    mockRunClaudeSessionImpl = async (params) => {
-      received = params;
-      return defaultResult;
-    };
+    const mockRunner = async (params: any) => { received = params; return defaultResult; };
 
     await runModelSession({ server: { port: 9999 } } as any, {
       prompt: "x",
@@ -56,16 +42,13 @@ describe("runModelSession", () => {
       fallbackModel: "f",
       logsDir: "/l",
       issueIdentifier: "X-1",
-    });
+    }, mockRunner);
     expect(received).not.toHaveProperty("server");
   });
 
   it("passes optional maxTurns and resumeSessionId", async () => {
     let received: any;
-    mockRunClaudeSessionImpl = async (params) => {
-      received = params;
-      return defaultResult;
-    };
+    const mockRunner = async (params: any) => { received = params; return defaultResult; };
 
     await runModelSession({} as any, {
       prompt: "test",
@@ -76,7 +59,7 @@ describe("runModelSession", () => {
       issueIdentifier: "X-2",
       maxTurns: 10,
       resumeSessionId: "prev-123",
-    });
+    }, mockRunner);
 
     expect(received.maxTurns).toBe(10);
     expect(received.resumeSessionId).toBe("prev-123");
@@ -84,10 +67,7 @@ describe("runModelSession", () => {
 
   it("passes mcpServers when provided", async () => {
     let received: any;
-    mockRunClaudeSessionImpl = async (params) => {
-      received = params;
-      return defaultResult;
-    };
+    const mockRunner = async (params: any) => { received = params; return defaultResult; };
 
     const mcpServers = { myServer: { command: "node", args: ["srv.js"] } };
     await runModelSession({} as any, {
@@ -98,15 +78,13 @@ describe("runModelSession", () => {
       logsDir: "/l",
       issueIdentifier: "X-3",
       mcpServers,
-    });
+    }, mockRunner);
 
     expect(received.mcpServers).toEqual(mcpServers);
   });
 
   it("propagates errors from runClaudeSession", async () => {
-    mockRunClaudeSessionImpl = async () => {
-      throw new Error("session failed");
-    };
+    const mockRunner = async () => { throw new Error("session failed"); };
 
     await expect(
       runModelSession({} as any, {
@@ -116,7 +94,7 @@ describe("runModelSession", () => {
         fallbackModel: "f",
         logsDir: "/l",
         issueIdentifier: "X-4",
-      }),
+      }, mockRunner),
     ).rejects.toThrow("session failed");
   });
 });

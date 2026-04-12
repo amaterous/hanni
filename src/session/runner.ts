@@ -9,6 +9,9 @@ export type ModelSessionResult = {
   resultText: string;
 };
 
+export type RunSessionFn = typeof runClaudeSession;
+export type RunModelSessionFn = typeof runModelSession;
+
 export async function runModelSession(
   _config: HanniConfig,
   params: {
@@ -22,6 +25,7 @@ export async function runModelSession(
     maxTurns?: number;
     mcpServers?: Record<string, { command: string; args: string[]; env?: Record<string, string> }>;
   },
+  _runSession: RunSessionFn = runClaudeSession,
 ): Promise<ModelSessionResult> {
-  return runClaudeSession(params);
+  return _runSession(params);
 }
