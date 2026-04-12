@@ -14,7 +14,7 @@ jobs:
         run: |
           HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' \
             --connect-timeout 10 --max-time 20 \
-            "http://34.24.123.203:3460/health" 2>/dev/null || echo "000")
+            "http://34.24.115.30:3460/health" 2>/dev/null || echo "000")
           echo "http_code=$HTTP_CODE" >> "$GITHUB_OUTPUT"
           if [ "$HTTP_CODE" = "200" ]; then
             echo "✅ hanni health: OK"
@@ -40,7 +40,7 @@ jobs:
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          MSG="🚨 hanni offline\n\n❌ /health — HTTP ${{ steps.hanni.outputs.http_code }}\n\n復旧: \`gcloud compute ssh bro-runners-new --project=neurometrics-484602 --zone=us-east1-b\`"
+          MSG="🚨 hanni offline\n\n❌ /health — HTTP ${{ steps.hanni.outputs.http_code }}\n\n復旧: \`gcloud compute ssh bro-runners-new --project=hanni-hosting-2025 --zone=us-east1-b\`"
           curl -s -X POST "$SLACK_WEBHOOK" \
             -H 'Content-Type: application/json' \
             -d "{\"text\": $(echo -e "$MSG" | jq -Rs .)}"
