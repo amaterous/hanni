@@ -42,3 +42,4 @@ tokens.json
 CLAUDE.md
 .mcp.json
 scripts/.env.test
+e2e-healthcheck/
