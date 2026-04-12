@@ -1,6 +1,7 @@
 {
   "agent": {
-    "name": "hanni"
+    "name": "hanni",
+    "ownerName": "YourName" // Used in prompts sent to Claude (e.g. "Working for YourName")
   },
   "server": {
     "port": 3460,

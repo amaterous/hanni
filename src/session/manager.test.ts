@@ -9,8 +9,8 @@ const mockReadFileSync = mock(() => "{}");
 const mockWriteFileSync = mock(() => {});
 const mockMkdirSync = mock(() => {});
 
-const mockCreateComment = mock(async () => {});
-const mockPostAgentActivity = mock(async () => {});
+const mockCreateComment = mock(async (_issueId: string, _body: string) => {});
+const mockPostAgentActivity = mock(async (_opts: any) => {});
 const MockLinearClient = mock(() => ({
   createComment: mockCreateComment,
   postAgentActivity: mockPostAgentActivity,
@@ -23,7 +23,7 @@ const mockCreateWorktree = mock(async () => ({
 }));
 const mockRouteToRepository = mock(() => null);
 
-const mockRunModelSession = mock(async () => ({
+const mockRunModelSession = mock(async (_config: any, _params: any) => ({
   sessionId: "sess-123",
   success: true,
   costUsd: 0.05,
@@ -31,7 +31,7 @@ const mockRunModelSession = mock(async () => ({
   resultText: "Done",
 }));
 
-const mockPushAndCreatePR = mock(async () => ({ prUrl: null }));
+const mockPushAndCreatePR = mock(async () => ({ prUrl: null as string | null }));
 
 // orchestration-prompt is NOT mocked — real pure functions are used to avoid
 // module-mock bleed into src/session/orchestration-prompt.test.ts
@@ -147,7 +147,9 @@ function resetMocks() {
   mockRunModelSession.mockReset();
   mockRunModelSession.mockImplementation(async () => ({
     sessionId: "sess-123",
+    success: true,
     costUsd: 0.05,
+    durationMs: 0,
     resultText: "Done",
   }));
   mockPushAndCreatePR.mockReset();
@@ -304,7 +306,7 @@ describe("SessionManager", () => {
       // Hang runModelSession so running never decrements
       let resolveHang: () => void;
       const hangPromise = new Promise<void>((res) => { resolveHang = res; });
-      mockRunModelSession.mockImplementation(() => hangPromise.then(() => ({ sessionId: "s", costUsd: 0, resultText: "" })));
+      mockRunModelSession.mockImplementation(() => hangPromise.then(() => ({ sessionId: "s", success: true, costUsd: 0, durationMs: 0, resultText: "" })));
 
       const sm = new SessionManager(config, mockRunModelSession);
 
@@ -347,7 +349,9 @@ describe("SessionManager", () => {
       // Return actual __RESULT__ format so parseResultMetadata can extract fields
       mockRunModelSession.mockImplementation(async () => ({
         sessionId: "sess-123",
+        success: true,
         costUsd: 0.05,
+        durationMs: 0,
         resultText: "Done!\n```\n__RESULT__\nPR: https://github.com/owner/myrepo/pull/1\nBRANCH: hanni/feature-branch\n```",
       }));
 
@@ -407,7 +411,7 @@ describe("SessionManager", () => {
       let resolveHang!: () => void;
       const hangPromise = new Promise<void>((res) => { resolveHang = res; });
       mockRunModelSession.mockImplementation(() =>
-        hangPromise.then(() => ({ sessionId: "s", costUsd: 0, resultText: "" })),
+        hangPromise.then(() => ({ sessionId: "s", success: true, costUsd: 0, durationMs: 0, resultText: "" })),
       );
 
       const config = makeConfig();
@@ -467,7 +471,9 @@ describe("SessionManager", () => {
       );
       mockRunModelSession.mockImplementation(async () => ({
         sessionId: "s2",
+        success: true,
         costUsd: 0.01,
+        durationMs: 0,
         resultText: "Here is the answer",
       }));
 
@@ -494,7 +500,7 @@ describe("SessionManager", () => {
       );
 
       let callCount = 0;
-      mockRunModelSession.mockImplementation(async (_config, opts) => {
+      mockRunModelSession.mockImplementation(async (_config: any, opts: any) => {
         callCount++;
         if (callCount === 1) throw new Error("session not found");
         return { sessionId: "new-session", success: true, durationMs: 0, costUsd: 0.01, resultText: "Fresh start" };
@@ -548,7 +554,7 @@ describe("SessionManager", () => {
       let resolveHang!: () => void;
       const hangPromise = new Promise<void>((res) => { resolveHang = res; });
       mockRunModelSession.mockImplementation(() =>
-        hangPromise.then(() => ({ sessionId: "s", costUsd: 0, resultText: "" })),
+        hangPromise.then(() => ({ sessionId: "s", success: true, costUsd: 0, durationMs: 0, resultText: "" })),
       );
 
       const sm = new SessionManager(makeConfig(), mockRunModelSession);
@@ -571,7 +577,7 @@ describe("SessionManager", () => {
       let resolveHang: () => void;
       const hangPromise = new Promise<void>((res) => { resolveHang = res; });
       mockRunModelSession.mockImplementation(() =>
-        hangPromise.then(() => ({ sessionId: "s", costUsd: 0, resultText: "" })),
+        hangPromise.then(() => ({ sessionId: "s", success: true, costUsd: 0, durationMs: 0, resultText: "" })),
       );
 
       const sm = new SessionManager(makeConfig(), mockRunModelSession);
@@ -594,7 +600,9 @@ describe("SessionManager", () => {
       resetMocks();
       mockRunModelSession.mockImplementation(async () => ({
         sessionId: "sess-123",
+        success: true,
         costUsd: 0.01,
+        durationMs: 0,
         resultText: "All done",
       }));
 
@@ -660,7 +668,9 @@ describe("SessionManager", () => {
       // Use actual __RESULT__ format so real parseResultMetadata can extract fields
       mockRunModelSession.mockImplementation(async () => ({
         sessionId: "s-new",
+        success: true,
         costUsd: 0.12,
+        durationMs: 0,
         resultText: "Clean result\n```\n__RESULT__\nTICKET: YUN-99\nBRANCH: hanni/yun-99-fix\nPR: https://github.com/owner/repo/pull/99\n```",
       }));
 

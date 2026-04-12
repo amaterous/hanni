@@ -28,8 +28,15 @@ export function startServer(
         return new Response("ok");
       }
 
-      // Admin UI + API
-      const adminRes = handleAdminAPI(req, url, config, configPath, sessions);
+      // Admin UI + API (protected by HANNI_ADMIN_TOKEN if set)
+      const adminToken = process.env.HANNI_ADMIN_TOKEN;
+      if (adminToken) {
+        const auth = req.headers.get("authorization") ?? "";
+        if (auth !== `Bearer ${adminToken}`) {
+          return new Response("Unauthorized", { status: 401 });
+        }
+      }
+      const adminRes = await handleAdminAPI(req, url, config, configPath, sessions);
       if (adminRes) return adminRes;
 
       // Slack Events API

@@ -2,6 +2,7 @@ export interface HanniConfig {
   provider?: "claude" | "openai";
   agent: {
     name: string;
+    ownerName?: string;
     slackHandle?: string;
     githubOwner?: string;
   };

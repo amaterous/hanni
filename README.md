@@ -51,6 +51,7 @@ Click the button above, then set these environment variables:
 | `SLACK_TEAM_ID` | Your Slack workspace ID (e.g. `T0XXXXXXX`) |
 | `GITHUB_TOKEN` | Personal access token with repo scope |
 | `MAX_CONCURRENT_SESSIONS` | Max parallel Claude sessions (default: `8`) |
+| `HANNI_ADMIN_TOKEN` | Bearer token to protect the `/admin` panel and `/api/*` endpoints. **Strongly recommended** when the server is publicly accessible. |
 | `HANNI_SERVER_URL` | *(GitHub Actions only)* Full URL of your server, e.g. `http://1.2.3.4:3460`. Used by the health-check workflow. Set as a [GitHub Actions secret](https://docs.github.com/en/actions/security-guides/encrypted-secrets). |
 
 **Optional:**

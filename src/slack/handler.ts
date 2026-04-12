@@ -1,7 +1,6 @@
 import { mkdirSync } from "fs";
 import { join } from "path";
 import type { HanniConfig, RepositoryConfig, SlackWorkspaceConfig } from "../types";
-import { saveConfig } from "../config";
 import type { SessionManager } from "../session/manager";
 import { SlackClient, verifySlackSignature } from "./client";
 import { formatForSlack } from "./chat";
@@ -182,29 +181,21 @@ export function createSlackHandler(
   };
 }
 
-async function handleMention(
-  text: string,
+/**
+ * Fetch thread history, resolve user names, and download images from the thread.
+ * Returns { threadContext, imagePaths } — imagePaths includes the initial paths plus
+ * any new images found in earlier thread messages.
+ */
+async function gatherThreadContext(
+  client: SlackClient,
   channel: string,
   threadTs: string,
-  messageTs: string,
-  userId: string,
-  client: SlackClient,
-  sessionManager: SessionManager,
-  config: HanniConfig,
-  wsConfig: SlackWorkspaceConfig,
-  imagePaths: string[] = [],
-) {
- try {
-  // Strip bot mention to get raw message
-  let rawText = text.replace(/<@[A-Z0-9]+>/g, "").trim();
-
-  if (!rawText && imagePaths.length === 0) {
-    await client.postMessage(channel, "なに〜？", threadTs);
-    return;
-  }
-
-  // Fetch thread history for context (with real user names)
+  initialImagePaths: string[],
+  botToken: string | undefined,
+): Promise<{ threadContext: string; imagePaths: string[] }> {
   const threadMessages = await client.getThreadMessages(channel, threadTs);
+
+  // Build text context from the last 200 messages
   const contextLines: string[] = [];
   for (const m of threadMessages.slice(-200)) {
     const name = await client.getUserName(m.user);
@@ -212,8 +203,9 @@ async function handleMention(
     contextLines.push(`${name}: ${cleaned}`);
   }
 
-  // Also download images from other thread messages (not just the @mention event's attachments)
-  if (wsConfig.botToken) {
+  // Download images attached to earlier thread messages (dedup against already-downloaded ones)
+  const imagePaths = [...initialImagePaths];
+  if (botToken) {
     const existingNames = new Set(imagePaths.map((p) => p.split("/").pop() ?? ""));
     const threadTmpDir = join("/tmp", `hanni-thread-images-${Date.now()}`);
     let threadTmpDirCreated = false;
@@ -227,7 +219,7 @@ async function handleMention(
             mkdirSync(threadTmpDir, { recursive: true });
             threadTmpDirCreated = true;
           }
-          const filePath = await downloadSlackImage(file as SlackFile, threadTmpDir, wsConfig.botToken!);
+          const filePath = await downloadSlackImage(file as SlackFile, threadTmpDir, botToken);
           if (filePath) {
             imagePaths.push(filePath);
             existingNames.add(file.name);
@@ -240,42 +232,45 @@ async function handleMention(
     }
   }
 
-  // Append image file paths so Claude can read them
-  if (imagePaths.length > 0) {
-    const imageNote = imagePaths
-      .map((p) => `[添付画像: ${p}]`)
-      .join("\n");
-    rawText = rawText ? `${rawText}\n\n${imageNote}` : imageNote;
-  }
-  const threadContext = contextLines.join("\n");
+  return { threadContext: contextLines.join("\n"), imagePaths };
+}
 
-  // Get current user's name
-  const userName = await client.getUserName(userId);
-
-  // Screenshot command — handle before Claude (fast & cheap, no LLM needed)
-  // Slack formats URLs as <http://example.com|example.com> — extract the actual URL first
-  const textForUrlMatch = rawText.replace(/<(https?:\/\/[^|>]+)\|?[^>]*>/g, "$1");
-  // Strip [添付画像: ...] lines before matching screenshot keywords to avoid false positives
-  // when the attached filename itself contains "screenshot"
+/**
+ * Handle a screenshot request. Returns true if the screenshot flow ran (caller should return early).
+ * Slack formats URLs as <http://example.com|example.com> — we extract the real URL before matching.
+ */
+async function handleScreenshotCommand(
+  rawText: string,
+  threadContext: string,
+  client: SlackClient,
+  config: HanniConfig,
+  channel: string,
+  threadTs: string,
+): Promise<boolean> {
+  // Strip [添付画像: ...] lines before matching keywords to avoid false positives on image filenames
   const rawTextWithoutImagePaths = rawText.replace(/\[添付画像:[^\]]+\]/g, "");
-  const screenshotMatch = rawTextWithoutImagePaths.match(SCREENSHOT_KEYWORDS_RE);
-  const urlMatch = textForUrlMatch.match(new RegExp(`(https?:\\/\\/[^\\s]+|[\\w.-]+${DOMAIN_EXTENSION_RE.source}[^\\s]*)`, "i"));
-  if (screenshotMatch) {
-    let url: string | null = null;
+  if (!rawTextWithoutImagePaths.match(SCREENSHOT_KEYWORDS_RE)) return false;
 
-    if (urlMatch) {
-      // URL が明示されている場合はそのまま使う
-      const rawUrl = urlMatch[1]!;
-      url = rawUrl.startsWith("http")
-        ? rawUrl.replace(/^http:\/\//, "https://")
-        : `https://${rawUrl}`;
-    } else {
-      // URL がない場合は Claude に推測させる
-      await client.postMessage(channel, "URL調べるね〜", threadTs);
-      try {
-        const repoList = config.repositories.map((r) => `${r.name}: ${r.github}`).join("\n");
-        const inferResult = await runModelSession(config, {
-          prompt: `ユーザーがスクショを撮りたいページのURLを推測して。
+  // Slack wraps URLs as <https://example.com|label> — extract the bare URL
+  const textForUrlMatch = rawText.replace(/<(https?:\/\/[^|>]+)\|?[^>]*>/g, "$1");
+  // Match explicit https:// URLs or bare domain names (e.g. example.com/path)
+  const urlMatch = textForUrlMatch.match(
+    new RegExp(`(https?:\\/\\/[^\\s]+|[\\w.-]+${DOMAIN_EXTENSION_RE.source}[^\\s]*)`, "i"),
+  );
+
+  let url: string | null = null;
+
+  if (urlMatch) {
+    // URL was provided explicitly — use it directly
+    const rawUrl = urlMatch[1]!;
+    url = rawUrl.startsWith("http") ? rawUrl.replace(/^http:\/\//, "https://") : `https://${rawUrl}`;
+  } else {
+    // No URL in message — ask Claude to infer it from context
+    await client.postMessage(channel, "URL調べるね〜", threadTs);
+    try {
+      const repoList = config.repositories.map((r) => `${r.name}: ${r.github}`).join("\n");
+      const inferResult = await runModelSession(config, {
+        prompt: `ユーザーがスクショを撮りたいページのURLを推測して。
 
 メッセージ: "${rawText}"
 ${threadContext ? `\nスレッドの文脈:\n${threadContext}` : ""}
@@ -290,100 +285,138 @@ URLを特定するために、以下を試して:
 
 最終的に特定したURLだけを __URL__ タグで囲んで出力して。例: __URL__https://example.com/pricing__URL__
 URLが特定できない場合は __URL__UNKNOWN__URL__ と出力して。`,
-          cwd: config.paths.repos,
-          model: config.claude.model,
-          fallbackModel: config.claude.fallbackModel,
-          logsDir: config.paths.logs,
-          issueIdentifier: `screenshot-${Date.now()}`,
-          maxTurns: SLACK_URL_INFER_MAX_TURNS,
-        });
-        const urlTagMatch = inferResult.resultText.match(/__URL__(.+?)__URL__/);
-        if (urlTagMatch && urlTagMatch[1] !== "UNKNOWN") {
-          url = urlTagMatch[1]!;
-        }
-      } catch (err) {
-        log.error("URL inference failed:", err);
+        cwd: config.paths.repos,
+        model: config.claude.model,
+        fallbackModel: config.claude.fallbackModel,
+        logsDir: config.paths.logs,
+        issueIdentifier: `screenshot-${Date.now()}`,
+        maxTurns: SLACK_URL_INFER_MAX_TURNS,
+      });
+      const urlTagMatch = inferResult.resultText.match(/__URL__(.+?)__URL__/);
+      if (urlTagMatch && urlTagMatch[1] !== "UNKNOWN") {
+        url = urlTagMatch[1]!;
       }
+    } catch (err) {
+      log.error("URL inference failed:", err);
     }
+  }
 
-    if (!url) {
-      await client.postMessage(channel, "URLがわからなかった... URLを直接教えてもらえる？", threadTs);
+  if (!url) {
+    await client.postMessage(channel, "URLがわからなかった... URLを直接教えてもらえる？", threadTs);
+    return true;
+  }
+
+  await client.postMessage(channel, `${url} のスクショ撮るね〜`, threadTs);
+  try {
+    const image = await takeScreenshot(url);
+    const hostname = new URL(url).hostname;
+    const uploaded = await client.uploadFile({
+      channel,
+      threadTs,
+      filename: `screenshot-${hostname}.png`,
+      content: image,
+      title: hostname,
+    });
+    if (!uploaded) {
+      await client.postMessage(channel, "スクショは撮れたけどアップロードできなかった...", threadTs);
+    }
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    log.error("Screenshot failed:", err);
+    await client.postMessage(channel, `スクショ撮れなかった...\n\`\`\`${errMsg}\`\`\``, threadTs);
+  }
+  return true;
+}
+
+async function handleMention(
+  text: string,
+  channel: string,
+  threadTs: string,
+  messageTs: string,
+  userId: string,
+  client: SlackClient,
+  sessionManager: SessionManager,
+  config: HanniConfig,
+  wsConfig: SlackWorkspaceConfig,
+  initialImagePaths: string[] = [],
+) {
+  try {
+    // Strip bot mention to get raw message
+    let rawText = text.replace(/<@[A-Z0-9]+>/g, "").trim();
+
+    if (!rawText && initialImagePaths.length === 0) {
+      await client.postMessage(channel, "なに〜？", threadTs);
       return;
     }
 
-    await client.postMessage(channel, `${url} のスクショ撮るね〜`, threadTs);
-    try {
-      const image = await takeScreenshot(url);
-      const hostname = new URL(url).hostname;
-      const uploaded = await client.uploadFile({
-        channel,
-        threadTs,
-        filename: `screenshot-${hostname}.png`,
-        content: image,
-        title: hostname,
-      });
-      if (!uploaded) {
-        await client.postMessage(channel, "スクショは撮れたけどアップロードできなかった...", threadTs);
+    // Fetch thread history and collect all images (including from earlier messages)
+    const { threadContext, imagePaths } = await gatherThreadContext(
+      client, channel, threadTs, initialImagePaths, wsConfig.botToken,
+    );
+
+    // Append image file paths so Claude can read them
+    if (imagePaths.length > 0) {
+      const imageNote = imagePaths.map((p) => `[添付画像: ${p}]`).join("\n");
+      rawText = rawText ? `${rawText}\n\n${imageNote}` : imageNote;
+    }
+
+    // Screenshot command — handle before Claude (fast & cheap, no LLM needed)
+    const screenshotHandled = await handleScreenshotCommand(
+      rawText, threadContext, client, config, channel, threadTs,
+    );
+    if (screenshotHandled) return;
+
+    // All other messages go to Claude — Claude decides everything
+    // (chat, code task, ops, Linear operations, etc.)
+    log.info(`[${wsConfig.name}] Message: "${rawText.slice(0, 80)}"`);
+
+    const userName = await client.getUserName(userId);
+
+    // Try to infer repo from message text (simple keyword match against known repos)
+    let repo: RepositoryConfig | undefined;
+    for (const r of config.repositories) {
+      if (rawText.toLowerCase().includes(r.name.toLowerCase())) {
+        repo = r;
+        break;
       }
+    }
+
+    try {
+      const result = await sessionManager.runAction({
+        message: rawText,
+        threadContext,
+        repo,
+        slackThread: { channel, threadTs },
+        userName,
+        linearWorkspaceId: wsConfig.defaultLinearWorkspaceId,
+        linearApiKey: wsConfig.linearApiKey,
+      });
+
+      // Post result to Slack
+      if (result.resultText) {
+        const formatted = formatForSlack(result.resultText);
+        const truncated = formatted.length > SLACK_MESSAGE_CHAR_LIMIT
+          ? formatted.slice(0, SLACK_MESSAGE_CHAR_LIMIT) + "..."
+          : formatted;
+        await client.postMessage(channel, truncated, threadTs);
+      }
+
+      // Add structured info if Claude created ticket/branch/PR
+      const metaParts: string[] = [];
+      if (result.issueIdentifier) metaParts.push(`*${result.issueIdentifier}*`);
+      if (result.prUrl) metaParts.push(`*PR:* ${result.prUrl}`);
+      if (result.branch) metaParts.push(`*Branch:* \`${result.branch}\``);
+      if (metaParts.length > 0) {
+        await client.postMessage(channel, metaParts.join("\n"), threadTs);
+      }
+
+      await client.addReaction(channel, messageTs, "white_check_mark");
     } catch (err) {
+      log.error(`Failed to handle message:`, err);
       const errMsg = err instanceof Error ? err.message : String(err);
-      log.error("Screenshot failed:", err);
-      await client.postMessage(channel, `スクショ撮れなかった...\n\`\`\`${errMsg}\`\`\``, threadTs);
+      await client.postMessage(channel, `エラーが出ちゃった...\n\`\`\`${errMsg}\`\`\``, threadTs);
     }
-    return;
-  }
-
-  // All messages go to Claude — Claude decides everything
-  // (chat, code task, ops, Linear operations, etc.)
-  log.info(`[${wsConfig.name}] Message: "${rawText.slice(0, 80)}"`);
-
-  // Try to infer repo from message text (simple keyword match against known repos)
-  let repo: RepositoryConfig | undefined;
-  for (const r of config.repositories) {
-    if (rawText.toLowerCase().includes(r.name.toLowerCase())) {
-      repo = r;
-      break;
-    }
-  }
-
-  try {
-    const result = await sessionManager.runAction({
-      message: rawText,
-      threadContext,
-      repo,
-      slackThread: { channel, threadTs },
-      userName,
-      linearWorkspaceId: wsConfig.defaultLinearWorkspaceId,
-      linearApiKey: wsConfig.linearApiKey,
-    });
-
-    // Post result to Slack
-    if (result.resultText) {
-      // Truncate long results for Slack
-      const formatted = formatForSlack(result.resultText);
-      const truncated = formatted.length > SLACK_MESSAGE_CHAR_LIMIT
-        ? formatted.slice(0, SLACK_MESSAGE_CHAR_LIMIT) + "..."
-        : formatted;
-      await client.postMessage(channel, truncated, threadTs);
-    }
-
-    // Add structured info if Claude created ticket/branch/PR
-    const metaParts: string[] = [];
-    if (result.issueIdentifier) metaParts.push(`*${result.issueIdentifier}*`);
-    if (result.prUrl) metaParts.push(`*PR:* ${result.prUrl}`);
-    if (result.branch) metaParts.push(`*Branch:* \`${result.branch}\``);
-    if (metaParts.length > 0) {
-      await client.postMessage(channel, metaParts.join("\n"), threadTs);
-    }
-
-    await client.addReaction(channel, messageTs, "white_check_mark");
   } catch (err) {
-    log.error(`Failed to handle message:`, err);
-    const errMsg = err instanceof Error ? err.message : String(err);
-    await client.postMessage(channel, `エラーが出ちゃった...\n\`\`\`${errMsg}\`\`\``, threadTs);
-  }
-
- } catch (err) {
     log.error("handleMention unexpected error:", err);
     const errMsg = err instanceof Error ? err.message : String(err);
     await client.postMessage(channel, `エラーが出ちゃった...\n\`\`\`${errMsg}\`\`\``, threadTs).catch((e) => {
@@ -392,41 +425,3 @@ URLが特定できない場合は __URL__UNKNOWN__URL__ と出力して。`,
   }
 }
 
-async function createNewRepo(
-  repoName: string,
-  linearWorkspaceId: string,
-  client: SlackClient,
-  channel: string,
-  threadTs: string,
-  githubOwner: string,
-): Promise<RepositoryConfig> {
-  await client.postMessage(channel, `\`${repoName}\` は新しいリポジトリだね！作るね〜`, threadTs);
-
-  // Create GitHub repo with initial commit via gh CLI
-  const proc = Bun.spawn(
-    ["gh", "repo", "create", `${githubOwner}/${repoName}`, "--private", "--clone=false", "--add-readme"],
-    { stdout: "pipe", stderr: "pipe" },
-  );
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
-  if (code !== 0) {
-    if (stderr.includes("already exists")) {
-      log.info(`GitHub repo already exists: ${githubOwner}/${repoName}`);
-    } else {
-      throw new Error(`gh repo create failed: ${stderr.trim()}`);
-    }
-  } else {
-    log.info(`GitHub repo created: ${githubOwner}/${repoName}`);
-  }
-
-  return {
-    name: repoName,
-    github: `${githubOwner}/${repoName}`,
-    baseBranch: "main",
-    linearWorkspaceId,
-    projectKeys: [],
-  };
-}

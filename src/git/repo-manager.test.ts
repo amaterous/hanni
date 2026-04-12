@@ -28,13 +28,18 @@ const spawnSpy = spyOn(Bun, "spawn").mockImplementation(
 
 const localRepo: RepositoryConfig = {
   name: "myrepo",
+  github: "",
   baseBranch: "main",
+  linearWorkspaceId: "ws1",
+  projectKeys: [],
 };
 
 const githubRepo: RepositoryConfig = {
   name: "myrepo",
   github: "owner/myrepo",
   baseBranch: "main",
+  linearWorkspaceId: "ws1",
+  projectKeys: [],
 };
 
 function resetMocks() {

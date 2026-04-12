@@ -28,7 +28,7 @@ describe("buildOrchestrationPrompt", () => {
   test("repo が指定されるとリポジトリ情報が含まれる", () => {
     const result = buildOrchestrationPrompt({
       ...base,
-      repo: { name: "my-repo", github: "owner/my-repo", baseBranch: "main" },
+      repo: { name: "my-repo", github: "owner/my-repo", baseBranch: "main", linearWorkspaceId: "ws1", projectKeys: [] },
     });
     expect(result).toContain("my-repo");
     expect(result).toContain("owner/my-repo");
@@ -38,7 +38,7 @@ describe("buildOrchestrationPrompt", () => {
   test("repo に subdir があると含まれる", () => {
     const result = buildOrchestrationPrompt({
       ...base,
-      repo: { name: "mono", github: "owner/mono", baseBranch: "main", subdir: "apps/web" },
+      repo: { name: "mono", github: "owner/mono", baseBranch: "main", subdir: "apps/web", linearWorkspaceId: "ws1", projectKeys: [] },
     });
     expect(result).toContain("apps/web");
   });
@@ -52,8 +52,8 @@ describe("buildOrchestrationPrompt", () => {
     const result = buildOrchestrationPrompt({
       ...base,
       allRepos: [
-        { name: "repo-a", github: "owner/repo-a", baseBranch: "main" },
-        { name: "repo-b", github: "owner/repo-b", baseBranch: "develop" },
+        { name: "repo-a", github: "owner/repo-a", baseBranch: "main", linearWorkspaceId: "ws1", projectKeys: [] },
+        { name: "repo-b", github: "owner/repo-b", baseBranch: "develop", linearWorkspaceId: "ws1", projectKeys: [] },
       ],
     });
     expect(result).toContain("repo-a");

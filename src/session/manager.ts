@@ -32,19 +32,19 @@ export class SessionManager {
   private running = 0;
   private persistPath: string;
   private readonly maxConcurrent: number;
-  private readonly _runModelSession: RunModelSessionFn;
+  private readonly runModelSessionFn: RunModelSessionFn;
   private readonly abortControllers = new Map<string, AbortController>();
 
   constructor(
     private config: HanniConfig,
-    _runSessionOverride?: RunModelSessionFn,
+    runSessionOverride?: RunModelSessionFn,
   ) {
     this.maxConcurrent = parseInt(
       process.env.MAX_CONCURRENT_SESSIONS ?? String(DEFAULT_MAX_CONCURRENT_SESSIONS),
       10,
     );
     this.persistPath = join(config.paths.logs, "sessions.json");
-    this._runModelSession = _runSessionOverride ?? runModelSession;
+    this.runModelSessionFn = runSessionOverride ?? runModelSession;
     this.loadFromDisk();
   }
 
@@ -169,7 +169,7 @@ export class SessionManager {
       // Try to resume, but fall back to a fresh session if the conversation is gone (e.g. after restart)
       let result;
       try {
-        result = await this._runModelSession(this.config, {
+        result = await this.runModelSessionFn(this.config, {
           prompt: commentBody,
           cwd: sessionInfo.worktreePath,
           model: this.config.claude.model,
@@ -180,7 +180,7 @@ export class SessionManager {
         });
       } catch (resumeErr) {
         log.warn(`${sessionInfo.issueIdentifier}: resume failed, starting fresh session: ${resumeErr}`);
-        result = await this._runModelSession(this.config, {
+        result = await this.runModelSessionFn(this.config, {
           prompt: commentBody,
           cwd: sessionInfo.worktreePath,
           model: this.config.claude.model,
@@ -314,7 +314,7 @@ export class SessionManager {
 
     this.running++;
     try {
-      const result = await this._runModelSession(this.config, {
+      const result = await this.runModelSessionFn(this.config, {
         prompt,
         cwd,
         model: this.config.claude.model,
@@ -326,13 +326,7 @@ export class SessionManager {
       });
 
       const parsed = parseResultMetadata(result.resultText);
-      sessionInfo.sessionId = result.sessionId;
-      sessionInfo.status = "idle";
-      sessionInfo.costUsd = result.costUsd;
-      if (parsed.issueIdentifier) sessionInfo.issueIdentifier = parsed.issueIdentifier;
-      if (parsed.branch) sessionInfo.branch = parsed.branch;
-      if (parsed.prUrl) sessionInfo.prUrl = parsed.prUrl;
-      this.saveToDisk();
+      this.applyRunResult(sessionInfo, result, parsed);
 
       return {
         issueIdentifier: parsed.issueIdentifier,
@@ -410,10 +404,10 @@ export class SessionManager {
       repo,
       allRepos: this.config.repositories,
       agentName: this.config.agent.name,
-      userName: "Yun",
+      userName: this.config.agent.ownerName ?? "User",
     });
 
-    const result = await this._runModelSession(this.config, {
+    const result = await this.runModelSessionFn(this.config, {
       prompt,
       cwd,
       model: this.config.claude.model,
@@ -425,14 +419,7 @@ export class SessionManager {
     });
 
     const parsed = parseResultMetadata(result.resultText);
-
-    sessionInfo.sessionId = result.sessionId;
-    sessionInfo.status = "idle";
-    sessionInfo.costUsd = result.costUsd;
-    if (parsed.issueIdentifier) sessionInfo.issueIdentifier = parsed.issueIdentifier;
-    if (parsed.branch) sessionInfo.branch = parsed.branch;
-    if (parsed.prUrl) sessionInfo.prUrl = parsed.prUrl;
-    this.saveToDisk();
+    this.applyRunResult(sessionInfo, result, parsed);
 
     if (ws.inReviewStateId) {
       await updateTicketAfterSession({
@@ -471,6 +458,20 @@ export class SessionManager {
       costUsd: result.costUsd,
       resultText: parsed.resultText,
     };
+  }
+
+  private applyRunResult(
+    sessionInfo: SessionInfo,
+    result: { sessionId: string; costUsd: number },
+    parsed: { issueIdentifier?: string; branch?: string; prUrl?: string },
+  ): void {
+    sessionInfo.sessionId = result.sessionId;
+    sessionInfo.status = "idle";
+    sessionInfo.costUsd = result.costUsd;
+    if (parsed.issueIdentifier) sessionInfo.issueIdentifier = parsed.issueIdentifier;
+    if (parsed.branch) sessionInfo.branch = parsed.branch;
+    if (parsed.prUrl) sessionInfo.prUrl = parsed.prUrl;
+    this.saveToDisk();
   }
 
   private saveToDisk() {

@@ -23,8 +23,9 @@ const makeMockLinearClient = () => ({
 const makeMockSessionManager = (hasSession = false) => ({
   getLinearClient: mock(() => makeMockLinearClient()),
   hasSession: mock((_id: string) => hasSession),
-  handleNewIssue: mock(async () => {}),
-  handleComment: mock(async () => {}),
+  handleNewIssue: mock(async (_issue: any, _wsId?: string) => {}),
+  handleComment: mock(async (_issueId: string, _body: string, _userId?: string, _wsId?: string) => {}),
+  abortSession: mock((_identifier: string) => true),
 });
 
 describe("createWebhookHandler", () => {

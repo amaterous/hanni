@@ -109,7 +109,7 @@ export class SlackClient {
     const putRes = await fetch(urlJson.upload_url, {
       method: "POST",
       headers: { "Content-Type": "application/octet-stream" },
-      body: params.content,
+      body: params.content as BodyInit,
     });
     if (!putRes.ok) {
       log.error(`Slack file upload failed: ${putRes.status} ${await putRes.text()}`);
