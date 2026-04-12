@@ -15,12 +15,25 @@ import { DEFAULT_MAX_CONCURRENT_SESSIONS } from "../constants";
 
 const log = createLogger("session");
 
+type McpServers = Record<string, { command: string; args: string[]; env?: Record<string, string> }>;
+
+function buildLinearMcpServers(apiKey: string): McpServers {
+  return {
+    linear: {
+      command: "npx",
+      args: ["-y", "@tacticlaunch/mcp-linear"],
+      env: { LINEAR_API_TOKEN: apiKey },
+    },
+  };
+}
+
 export class SessionManager {
   private sessions = new Map<string, SessionInfo>();
   private running = 0;
   private persistPath: string;
   private readonly maxConcurrent: number;
   private readonly _runModelSession: RunModelSessionFn;
+  private readonly abortControllers = new Map<string, AbortController>();
 
   constructor(
     private config: HanniConfig,
@@ -58,6 +71,14 @@ export class SessionManager {
     const ws = this.config.linear.workspaces[workspaceId];
     if (!ws) throw new Error(`Unknown workspace: ${workspaceId}`);
     return new LinearClient(ws.apiKey);
+  }
+
+  abortSession(issueIdentifier: string): boolean {
+    const controller = this.abortControllers.get(issueIdentifier);
+    if (!controller) return false;
+    controller.abort();
+    log.info(`Abort signal sent to session ${issueIdentifier}`);
+    return true;
   }
 
   async handleNewIssue(
@@ -231,7 +252,7 @@ export class SessionManager {
     linearWorkspaceId?: string;
     linearApiKey?: string;
   }): Promise<SessionResult> {
-    const { message, threadContext, repo, slackThread, userName, linearWorkspaceId, linearApiKey } = params;
+    const { message, threadContext, repo, slackThread, userName, linearApiKey } = params;
     const sessionKey = `slack:${slackThread.channel}:${slackThread.threadTs}`;
 
     // Check for existing session in this thread
@@ -246,15 +267,26 @@ export class SessionManager {
       return { costUsd: 0, resultText: "今いっぱいいっぱいだから、ちょっと待ってね〜" };
     }
 
-    // Set up working directory
-    let cwd: string;
-    let worktreePath: string | undefined;
-    let branchName: string | undefined;
+    const prompt = buildOrchestrationPrompt({
+      message,
+      threadContext,
+      repo,
+      allRepos: this.config.repositories,
+      agentName: this.config.agent.name,
+      userName,
+    });
+
+    const mcpServers = linearApiKey ? buildLinearMcpServers(linearApiKey) : undefined;
+
+    const sessionInfo: SessionInfo = {
+      sessionId: "",
+      status: "running",
+      createdAt: new Date().toISOString(),
+      slackThreadKey: `${slackThread.channel}:${slackThread.threadTs}`,
+    };
 
     if (repo) {
       const repoPath = await ensureRepo(repo, this.config.paths.repos);
-      // Create worktree for isolation (even if Claude might not need a branch,
-      // it ensures concurrent tasks on the same repo don't conflict)
       const wt = await createWorktree({
         repoPath,
         worktreesDir: this.config.paths.worktrees,
@@ -262,50 +294,20 @@ export class SessionManager {
         issueTitle: message.slice(0, 50),
         baseBranch: repo.baseBranch,
       });
-      worktreePath = wt.worktreePath;
-      branchName = wt.branchName;
-      cwd = repo.subdir ? join(worktreePath, repo.subdir) : worktreePath;
-    } else {
-      // No repo — use a scratch directory
-      cwd = this.config.paths.repos;
+      sessionInfo.worktreePath = wt.worktreePath;
+      sessionInfo.branch = wt.branchName;
+      sessionInfo.repo = repo.name;
     }
 
-    // Track session
-    const sessionInfo: SessionInfo = {
-      sessionId: "",
-      worktreePath,
-      repo: repo?.name,
-      branch: branchName,
-      status: "running",
-      createdAt: new Date().toISOString(),
-      slackThreadKey: `${slackThread.channel}:${slackThread.threadTs}`,
-    };
     this.sessions.set(sessionKey, sessionInfo);
     this.saveToDisk();
 
+    const cwd = sessionInfo.worktreePath
+      ? (repo?.subdir ? join(sessionInfo.worktreePath, repo.subdir) : sessionInfo.worktreePath)
+      : this.config.paths.repos;
+
     this.running++;
     try {
-      // Build orchestration prompt
-      const prompt = buildOrchestrationPrompt({
-        message,
-        threadContext,
-        repo,
-        allRepos: this.config.repositories,
-        agentName: this.config.agent.name,
-        userName,
-      });
-
-      // Build MCP servers config
-      const mcpServers: Record<string, { command: string; args: string[]; env?: Record<string, string> }> = {};
-      if (linearApiKey) {
-        mcpServers.linear = {
-          command: "npx",
-          args: ["-y", "@tacticlaunch/mcp-linear"],
-          env: { LINEAR_API_TOKEN: linearApiKey },
-        };
-      }
-
-      // Run Claude with full tooling
       const result = await this._runModelSession(this.config, {
         prompt,
         cwd,
@@ -314,13 +316,10 @@ export class SessionManager {
         logsDir: this.config.paths.logs,
         issueIdentifier: sessionKey.replace(/[:/]/g, "-"),
         maxTurns: 100,
-        mcpServers: Object.keys(mcpServers).length > 0 ? mcpServers : undefined,
+        mcpServers,
       });
 
-      // Parse structured result from Claude's output
       const parsed = parseResultMetadata(result.resultText);
-
-      // Update session info
       sessionInfo.sessionId = result.sessionId;
       sessionInfo.status = "idle";
       sessionInfo.costUsd = result.costUsd;
@@ -356,15 +355,11 @@ export class SessionManager {
     const client = this.getLinearClient(workspaceId);
     const ws = this.config.linear.workspaces[workspaceId]!;
 
-    // Report to Agent Session: working on it
     if (agentSessionId) {
       await client.postAgentActivity(agentSessionId, "action", `Working on **${repo.name}** repository...`).catch(() => {});
     }
 
-    // 1. Ensure repo is cloned / fetched
     const repoPath = await ensureRepo(repo, this.config.paths.repos);
-
-    // 2. Create worktree
     const { worktreePath, branchName } = await createWorktree({
       repoPath,
       worktreesDir: this.config.paths.worktrees,
@@ -373,10 +368,8 @@ export class SessionManager {
       baseBranch: repo.baseBranch,
     });
 
-    // Resolve actual cwd (for monorepos with subdir)
     const cwd = repo.subdir ? join(worktreePath, repo.subdir) : worktreePath;
 
-    // Track session
     const sessionInfo: SessionInfo = {
       sessionId: "",
       worktreePath,
@@ -389,20 +382,19 @@ export class SessionManager {
       slackThreadKey: slackThread ? `${slackThread.channel}:${slackThread.threadTs}` : undefined,
     };
     this.sessions.set(issue.identifier, sessionInfo);
+    const abortController = new AbortController();
+    this.abortControllers.set(issue.identifier, abortController);
     this.saveToDisk();
 
-    // Report to Agent Session: Claude is running
     if (agentSessionId) {
       await client.postAgentActivity(agentSessionId, "action", `Running Claude on branch \`${branchName}\`...`).catch(() => {});
     }
 
-    // Build message from Linear issue (same format as Slack flow)
     const issueMessage = [
       `Linear チケット ${issue.identifier}: ${issue.title}`,
       issue.description ?? "",
     ].filter(Boolean).join("\n\n");
 
-    // Use orchestration prompt — same as Slack flow
     const prompt = buildOrchestrationPrompt({
       message: issueMessage,
       repo,
@@ -411,18 +403,6 @@ export class SessionManager {
       userName: "Yun",
     });
 
-    // Build MCP servers config (Linear MCP)
-    const mcpServers: Record<string, { command: string; args: string[]; env?: Record<string, string> }> = {};
-    const linearApiKey = ws.apiKey;
-    if (linearApiKey) {
-      mcpServers.linear = {
-        command: "npx",
-        args: ["-y", "@tacticlaunch/mcp-linear"],
-        env: { LINEAR_API_TOKEN: linearApiKey },
-      };
-    }
-
-    // Run Claude with full tooling (same as Slack flow)
     const result = await this._runModelSession(this.config, {
       prompt,
       cwd,
@@ -431,13 +411,11 @@ export class SessionManager {
       logsDir: this.config.paths.logs,
       issueIdentifier: issue.identifier,
       maxTurns: 100,
-      mcpServers: Object.keys(mcpServers).length > 0 ? mcpServers : undefined,
+      mcpServers: buildLinearMcpServers(ws.apiKey),
     });
 
-    // Parse structured result from Claude's output
     const parsed = parseResultMetadata(result.resultText);
 
-    // Update session info
     sessionInfo.sessionId = result.sessionId;
     sessionInfo.status = "idle";
     sessionInfo.costUsd = result.costUsd;
@@ -446,7 +424,6 @@ export class SessionManager {
     if (parsed.prUrl) sessionInfo.prUrl = parsed.prUrl;
     this.saveToDisk();
 
-    // Update Linear issue status to From Hanni ♡
     if (ws.inReviewStateId) {
       await updateTicketAfterSession({
         linearClient: client,
@@ -459,7 +436,6 @@ export class SessionManager {
       });
     }
 
-    // Report to Agent Session: done
     if (agentSessionId) {
       if (parsed.resultText) {
         await client.postAgentActivity(agentSessionId, "response", parsed.resultText).catch(() => {});
@@ -471,9 +447,8 @@ export class SessionManager {
       await client.postAgentActivity(agentSessionId, "action", parts.join(" ")).catch(() => {});
     }
 
-    log.info(
-      `${issue.identifier} done: cost=$${result.costUsd.toFixed(2)} pr=${parsed.prUrl ?? "none"}`,
-    );
+    this.abortControllers.delete(issue.identifier);
+    log.info(`${issue.identifier} done: cost=$${result.costUsd.toFixed(2)} pr=${parsed.prUrl ?? "none"}`);
 
     return {
       issueIdentifier: parsed.issueIdentifier ?? issue.identifier,

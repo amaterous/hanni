@@ -8,6 +8,8 @@
   },
   "linear": {
     "webhookSecret": "<LINEAR_WEBHOOK_SECRET>",
+    // Optional: if you use Hookdeck to relay webhooks locally
+    "hookdeckRelayToken": "<HOOKDECK_RELAY_TOKEN>",
     "workspaces": {
       "<WORKSPACE_ID>": {
         "name": "MyWorkspace",

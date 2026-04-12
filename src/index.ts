@@ -6,7 +6,6 @@ import { SessionManager } from "./session/manager";
 import { createWebhookHandler } from "./webhook/handler";
 import { createSlackHandler } from "./slack/handler";
 import { SlackClient } from "./slack/client";
-import { startOpenAITokenRefresher } from "./openai/oauth";
 import { LinearClient } from "./linear/client";
 import { createLogger } from "./utils/logger";
 import { HEARTBEAT_INTERVAL_MS, SCHEDULER_CHECK_INTERVAL_MS } from "./constants";
@@ -40,10 +39,6 @@ async function main() {
       }
     }
   }
-
-  startOpenAITokenRefresher(config, () => {
-    log.info("OpenAI tokens refreshed");
-  });
 
   // Create session manager
   const sessionManager = new SessionManager(config);

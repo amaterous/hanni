@@ -20,6 +20,13 @@ const DEFAULT_TOKENS_PATH = "./tokens.json";
  *   HANNI_PORT              (default: 3460)
  *   GITHUB_TOKEN            (for gh CLI in sessions)
  *   HANNI_REPOS             (JSON array of RepositoryConfig)
+ *   HOOKDECK_RELAY_TOKEN    (if using Hookdeck to relay webhooks)
+ *   LINEAR_WORKSPACE_NAME   (display name for the workspace, default: "workspace")
+ *   SLACK_WORKSPACE_NAME    (display name for the workspace, default: "workspace")
+ *   SLACK_LINEAR_WORKSPACE_ID (Linear workspace ID for Slack chat mode)
+ *   CLAUDE_MODEL            (default: claude-sonnet-4-20250514)
+ *   CLAUDE_FALLBACK_MODEL   (default: claude-haiku-4-5-20251001)
+ *   MAX_CONCURRENT_SESSIONS (default: 8)
  */
 function buildConfigFromEnv(): HanniConfig | null {
   const linearWebhookSecret = process.env.LINEAR_WEBHOOK_SECRET;
@@ -64,6 +71,7 @@ function buildConfigFromEnv(): HanniConfig | null {
     server: { port, webhookPath: "/webhook" },
     linear: {
       webhookSecret: linearWebhookSecret!,
+      hookdeckRelayToken: process.env.HOOKDECK_RELAY_TOKEN,
       workspaces: {
         [linearWorkspaceId!]: {
           name: process.env.LINEAR_WORKSPACE_NAME ?? "workspace",

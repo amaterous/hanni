@@ -51,6 +51,17 @@ Click the button above, then set these environment variables:
 | `GITHUB_TOKEN` | Personal access token with repo scope |
 | `MAX_CONCURRENT_SESSIONS` | Max parallel Claude sessions (default: `8`) |
 
+**Optional:**
+
+| Variable | Description |
+|---|---|
+| `LINEAR_WORKSPACE_NAME` | Display name for the Linear workspace (default: `"workspace"`) |
+| `SLACK_WORKSPACE_NAME` | Display name for the Slack workspace (default: `"workspace"`) |
+| `SLACK_LINEAR_WORKSPACE_ID` | Linear workspace ID to use in Slack chat mode (defaults to `LINEAR_WORKSPACE_ID`) |
+| `HOOKDECK_RELAY_TOKEN` | If using [Hookdeck](https://hookdeck.com) to relay webhooks locally |
+| `CLAUDE_MODEL` | Claude model override (default: `claude-sonnet-4-20250514`) |
+| `CLAUDE_FALLBACK_MODEL` | Fallback model (default: `claude-haiku-4-5-20251001`) |
+
 ### 2. Get your Claude token
 
 ```bash

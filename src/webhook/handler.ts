@@ -1,9 +1,29 @@
+import { z } from "zod";
 import type { LinearWebhookPayload } from "../linear/types";
 import type { HanniConfig } from "../types";
 import type { SessionManager } from "../session/manager";
 import { createLogger } from "../utils/logger";
 
 const log = createLogger("webhook");
+
+const AgentSessionSchema = z.object({
+  id: z.string(),
+  issue: z.object({
+    id: z.string(),
+    identifier: z.string(),
+    title: z.string(),
+    description: z.string().optional(),
+    teamId: z.string().optional(),
+    team: z.object({ id: z.string() }).optional(),
+  }).optional(),
+  comment: z.object({ body: z.string() }).optional(),
+  status: z.string().optional(),
+});
+
+const AgentActivitySchema = z.object({
+  signal: z.string().optional(),
+  content: z.object({ body: z.string() }).optional(),
+});
 
 export function createWebhookHandler(
   sessionManager: SessionManager,
@@ -20,16 +40,13 @@ export function createWebhookHandler(
 
     // Handle Agent Session events
     if (payload.type === "AgentSessionEvent") {
-      const agentSession = (payload as any).agentSession as {
-        id: string;
-        issue?: { id: string; identifier: string; title: string; description?: string; teamId?: string; team?: { id: string } };
-        comment?: { body: string };
-        status?: string;
-      };
-      const agentActivity = (payload as any).agentActivity as {
-        signal?: string;
-        content?: { body: string };
-      } | undefined;
+      const agentSessionResult = AgentSessionSchema.safeParse((payload as unknown as Record<string, unknown>).agentSession);
+      if (!agentSessionResult.success) {
+        log.warn(`Invalid agentSession payload: ${agentSessionResult.error.message}`);
+        return;
+      }
+      const agentSession = agentSessionResult.data;
+      const agentActivity = AgentActivitySchema.safeParse((payload as unknown as Record<string, unknown>).agentActivity).data;
 
       if (payload.action === "created" && agentSession.issue) {
         const issue = agentSession.issue;
@@ -77,7 +94,10 @@ export function createWebhookHandler(
         // User sent a follow-up prompt or stop signal
         if (agentActivity?.signal === "stop") {
           log.info(`Stop signal for ${agentSession.issue.identifier}`);
-          // TODO: abort running session
+          const aborted = sessionManager.abortSession(agentSession.issue.identifier);
+          if (!aborted) {
+            log.debug(`No running session to abort for ${agentSession.issue.identifier}`);
+          }
           return;
         }
 
