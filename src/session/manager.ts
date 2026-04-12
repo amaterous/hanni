@@ -236,7 +236,7 @@ export class SessionManager {
       log.error(`${sessionInfo.issueIdentifier}: handleComment error:`, err);
       // Report error to Agent Session so Linear doesn't show "Did Not Respond"
       if (agentSessionId) {
-        await client.postAgentActivity(agentSessionId, "error", `エラーが発生しました: ${err}`).catch((e) => {
+        await client.postAgentActivity(agentSessionId, "error", `An error occurred: ${err}`).catch((e) => {
           log.warn(`${sessionInfo.issueIdentifier}: failed to post error activity: ${e}`);
         });
       }
@@ -265,12 +265,12 @@ export class SessionManager {
     const existing = this.getSessionBySlackThread(slackThread.channel, slackThread.threadTs);
     if (existing?.status === "running") {
       log.warn(`Session already running in thread ${sessionKey}`);
-      return { costUsd: 0, resultText: "まだ前のタスクが実行中だよ〜 終わるまで待ってね！" };
+      return { costUsd: 0, resultText: "Still working on the previous task. Please wait!" };
     }
 
     if (this.running >= this.maxConcurrent) {
       log.warn(`Max concurrent sessions (${this.maxConcurrent}) reached`);
-      return { costUsd: 0, resultText: "今いっぱいいっぱいだから、ちょっと待ってね〜" };
+      return { costUsd: 0, resultText: "At capacity right now. Please try again later." };
     }
 
     const prompt = buildOrchestrationPrompt({
@@ -339,7 +339,7 @@ export class SessionManager {
       log.error(`Action session error:`, err);
       sessionInfo.status = "idle";
       this.saveToDisk();
-      return { costUsd: 0, resultText: "エラーが出ちゃった..." };
+      return { costUsd: 0, resultText: "An error occurred..." };
     } finally {
       this.running--;
     }

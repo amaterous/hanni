@@ -71,7 +71,7 @@ describe("parseSlackMention", () => {
     });
   });
 
-  it("parses task with repo name followed by の", () => {
+  it("parses task with repo name followed by Japanese particle (の)", () => {
     const result = parseSlackMention(
       "<@U123456> iq-testのトップページ修正して",
       repos,
@@ -97,7 +97,7 @@ describe("parseSlackMention", () => {
     });
   });
 
-  it("parses task with dotted repo name directly followed by の", () => {
+  it("parses task with dotted repo name directly followed by Japanese particle (の)", () => {
     const result = parseSlackMention(
       "<@U123456> picoli.siteのバグ直して",
       repos,

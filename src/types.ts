@@ -92,14 +92,14 @@ export interface VercelConfig {
 }
 
 export interface ScheduledJob {
-  name: string;             // ジョブ識別子（重複チェックファイル名に使用）
+  name: string;             // Job identifier (also used as dedup filename)
   utcHour: number;
-  utcMinute?: number;       // デフォルト: 0
+  utcMinute?: number;       // Default: 0
   slackWorkspaceId: string; // Slack team_id
   channel: string;
-  repo?: string;            // repositories の name（省略時はリポジトリなしで実行）
-  message: string;          // Claude に渡すメッセージ
-  initMessage?: string;     // Slack 初期投稿メッセージ（デフォルト: "⏰ 実行中〜"）
+  repo?: string;            // Repository name from `repositories` (omit to run without a repo)
+  message: string;          // Message passed to Claude
+  initMessage?: string;     // Initial Slack post (default: "⏰ Running...")
 }
 
 export interface SessionResult {

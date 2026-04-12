@@ -566,7 +566,7 @@ describe("SessionManager", () => {
         slackThread: { channel: "C123", threadTs: "1234.5678" },
       });
 
-      expect(result.resultText).toContain("まだ前のタスク");
+      expect(result.resultText).toContain("Still working");
       resolveHang();
     });
 
@@ -591,7 +591,7 @@ describe("SessionManager", () => {
         slackThread: { channel: "C3", threadTs: "t3" },
       });
 
-      expect(result.resultText).toContain("いっぱいいっぱい");
+      expect(result.resultText).toContain("capacity");
       resolveHang!();
       delete process.env.MAX_CONCURRENT_SESSIONS;
     });
@@ -660,7 +660,7 @@ describe("SessionManager", () => {
         slackThread: { channel: "C123", threadTs: "1111.2222" },
       });
 
-      expect(result.resultText).toContain("エラー");
+      expect(result.resultText).toContain("error");
     });
 
     it("parses structured result fields from model output", async () => {

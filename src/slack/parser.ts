@@ -11,9 +11,9 @@ export interface ParsedSlackCommand {
  * Parse a Slack mention text into a structured command.
  *
  * Examples:
- *   "@hanni iq-testのトップページ修正して"     → { type: "task", repoName: "iq-test", task: "トップページ修正して" }
- *   "@hanni YUN-81 続きやって"                → { type: "resume", issueIdentifier: "YUN-81" }
- *   "@hanni status"                           → { type: "status" }
+ *   "@hanni iq-test fix the top page"  → { type: "task", repoName: "iq-test", taskDescription: "fix the top page" }
+ *   "@hanni YUN-81 continue"           → { type: "resume", issueIdentifier: "YUN-81" }
+ *   "@hanni status"                    → { type: "status" }
  */
 export function parseSlackMention(
   rawText: string,

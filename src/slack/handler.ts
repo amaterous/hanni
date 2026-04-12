@@ -247,8 +247,8 @@ async function handleScreenshotCommand(
   channel: string,
   threadTs: string,
 ): Promise<boolean> {
-  // Strip [添付画像: ...] lines before matching keywords to avoid false positives on image filenames
-  const rawTextWithoutImagePaths = rawText.replace(/\[添付画像:[^\]]+\]/g, "");
+  // Strip [Attached image: ...] lines before matching keywords to avoid false positives on image filenames
+  const rawTextWithoutImagePaths = rawText.replace(/\[Attached image:[^\]]+\]/g, "");
   if (!rawTextWithoutImagePaths.match(SCREENSHOT_KEYWORDS_RE)) return false;
 
   // Slack wraps URLs as <https://example.com|label> — extract the bare URL
@@ -266,25 +266,25 @@ async function handleScreenshotCommand(
     url = rawUrl.startsWith("http") ? rawUrl.replace(/^http:\/\//, "https://") : `https://${rawUrl}`;
   } else {
     // No URL in message — ask Claude to infer it from context
-    await client.postMessage(channel, "URL調べるね〜", threadTs);
+    await client.postMessage(channel, "Looking up the URL...", threadTs);
     try {
       const repoList = config.repositories.map((r) => `${r.name}: ${r.github}`).join("\n");
       const inferResult = await runModelSession(config, {
-        prompt: `ユーザーがスクショを撮りたいページのURLを推測して。
+        prompt: `Infer the URL of the page the user wants to take a screenshot of.
 
-メッセージ: "${rawText}"
-${threadContext ? `\nスレッドの文脈:\n${threadContext}` : ""}
+Message: "${rawText}"
+${threadContext ? `\nThread context:\n${threadContext}` : ""}
 
-既知のリポジトリ:
+Known repositories:
 ${repoList}
 
-URLを特定するために、以下を試して:
-1. リポジトリ名やプロジェクト名からVercelのデプロイURLを推測（例: project-name.vercel.app）
-2. GitHub Pagesやカスタムドメインの可能性を確認
-3. 必要ならghコマンドやVercel CLIで調べる
+To identify the URL, try:
+1. Guess the Vercel deployment URL from the repo or project name (e.g. project-name.vercel.app)
+2. Check for GitHub Pages or a custom domain
+3. Use gh or Vercel CLI if needed
 
-最終的に特定したURLだけを __URL__ タグで囲んで出力して。例: __URL__https://example.com/pricing__URL__
-URLが特定できない場合は __URL__UNKNOWN__URL__ と出力して。`,
+Output only the identified URL wrapped in __URL__ tags. Example: __URL__https://example.com/pricing__URL__
+If you cannot determine the URL, output __URL__UNKNOWN__URL__.`,
         cwd: config.paths.repos,
         model: config.claude.model,
         fallbackModel: config.claude.fallbackModel,
@@ -302,11 +302,11 @@ URLが特定できない場合は __URL__UNKNOWN__URL__ と出力して。`,
   }
 
   if (!url) {
-    await client.postMessage(channel, "URLがわからなかった... URLを直接教えてもらえる？", threadTs);
+    await client.postMessage(channel, "Couldn't figure out the URL. Can you share it directly?", threadTs);
     return true;
   }
 
-  await client.postMessage(channel, `${url} のスクショ撮るね〜`, threadTs);
+  await client.postMessage(channel, `Taking a screenshot of ${url}...`, threadTs);
   try {
     const image = await takeScreenshot(url);
     const hostname = new URL(url).hostname;
@@ -318,12 +318,12 @@ URLが特定できない場合は __URL__UNKNOWN__URL__ と出力して。`,
       title: hostname,
     });
     if (!uploaded) {
-      await client.postMessage(channel, "スクショは撮れたけどアップロードできなかった...", threadTs);
+      await client.postMessage(channel, "Screenshot taken but upload failed...", threadTs);
     }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     log.error("Screenshot failed:", err);
-    await client.postMessage(channel, `スクショ撮れなかった...\n\`\`\`${errMsg}\`\`\``, threadTs);
+    await client.postMessage(channel, `Couldn't take the screenshot...\n\`\`\`${errMsg}\`\`\``, threadTs);
   }
   return true;
 }
@@ -345,7 +345,7 @@ async function handleMention(
     let rawText = text.replace(/<@[A-Z0-9]+>/g, "").trim();
 
     if (!rawText && initialImagePaths.length === 0) {
-      await client.postMessage(channel, "なに〜？", threadTs);
+      await client.postMessage(channel, "Hmm?", threadTs);
       return;
     }
 
@@ -356,7 +356,7 @@ async function handleMention(
 
     // Append image file paths so Claude can read them
     if (imagePaths.length > 0) {
-      const imageNote = imagePaths.map((p) => `[添付画像: ${p}]`).join("\n");
+      const imageNote = imagePaths.map((p) => `[Attached image: ${p}]`).join("\n");
       rawText = rawText ? `${rawText}\n\n${imageNote}` : imageNote;
     }
 

@@ -101,7 +101,7 @@ async function main() {
           mkdirSync(dirname(lastFiredPath), { recursive: true });
           writeFileSync(lastFiredPath, todayUtc, "utf-8");
           log.info(`[scheduler:${job.name}] Firing for ${todayUtc}`);
-          const initTs = await jobClient.postMessage(job.channel, job.initMessage ?? "⏰ 実行中〜");
+          const initTs = await jobClient.postMessage(job.channel, job.initMessage ?? "⏰ Running...");
           if (!initTs) {
             log.error(`[scheduler:${job.name}] Failed to post initial message`);
             return;

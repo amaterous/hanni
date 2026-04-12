@@ -41,14 +41,14 @@
   "schedule": {
     "jobs": [
       {
-        "name": "hanni-news",              // ジョブ識別子（重複チェックファイル名に使用）
+        "name": "hanni-news",              // Job identifier (used as dedup filename)
         "utcHour": 3,                      // UTC 3:00 = JST 12:00
         "utcMinute": 0,
         "slackWorkspaceId": "<SLACK_TEAM_ID>",
         "channel": "<CHANNEL_ID>",
-        "repo": "hanni-news",              // repositories の name と一致させる
-        "message": "今日のニュースを配信して",
-        "initMessage": "📰 ニュース配信中〜" // 省略時: "⏰ 実行中〜"
+        "repo": "hanni-news",              // Must match a name in `repositories`
+        "message": "Deliver today's news digest",
+        "initMessage": "📰 Delivering news..." // Optional, default: "⏰ Running..."
       }
     ]
   },

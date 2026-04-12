@@ -3,29 +3,28 @@ import { buildOrchestrationPrompt, parseResultMetadata } from "./orchestration-p
 
 describe("buildOrchestrationPrompt", () => {
   const base = {
-    message: "テストしてみて",
+    message: "please test this",
     agentName: "Hanni",
     userName: "Yun",
   };
 
-  test("agentName と userName がプロンプトに含まれる", () => {
+  test("includes agentName and userName in the prompt", () => {
     const result = buildOrchestrationPrompt(base);
     expect(result).toContain("Hanni");
     expect(result).toContain("Yun");
   });
 
-  test("message が末尾に含まれる", () => {
+  test("includes message at the end", () => {
     const result = buildOrchestrationPrompt(base);
-    expect(result).toContain("テストしてみて");
+    expect(result).toContain("please test this");
   });
 
-  test("userName が未指定のとき「Yun」がデフォルト", () => {
+  test("uses 'User' as default when userName is omitted", () => {
     const result = buildOrchestrationPrompt({ ...base, userName: undefined });
-    // fallback: "Yun" as default name in prompt
-    expect(result).toContain("Yun");
+    expect(result).toContain("User");
   });
 
-  test("repo が指定されるとリポジトリ情報が含まれる", () => {
+  test("includes repo info when repo is provided", () => {
     const result = buildOrchestrationPrompt({
       ...base,
       repo: { name: "my-repo", github: "owner/my-repo", baseBranch: "main", linearWorkspaceId: "ws1", projectKeys: [] },
@@ -35,7 +34,7 @@ describe("buildOrchestrationPrompt", () => {
     expect(result).toContain("main");
   });
 
-  test("repo に subdir があると含まれる", () => {
+  test("includes subdir when repo has subdir", () => {
     const result = buildOrchestrationPrompt({
       ...base,
       repo: { name: "mono", github: "owner/mono", baseBranch: "main", subdir: "apps/web", linearWorkspaceId: "ws1", projectKeys: [] },
@@ -43,12 +42,12 @@ describe("buildOrchestrationPrompt", () => {
     expect(result).toContain("apps/web");
   });
 
-  test("repo なしのときリポジトリセクションは含まれない", () => {
+  test("omits target repository section when no repo", () => {
     const result = buildOrchestrationPrompt(base);
-    expect(result).not.toContain("作業対象リポジトリ");
+    expect(result).not.toContain("Target Repository");
   });
 
-  test("allRepos が指定されるとリポジトリ一覧が含まれる", () => {
+  test("includes repo list when allRepos is provided", () => {
     const result = buildOrchestrationPrompt({
       ...base,
       allRepos: [
@@ -58,40 +57,39 @@ describe("buildOrchestrationPrompt", () => {
     });
     expect(result).toContain("repo-a");
     expect(result).toContain("repo-b");
-    expect(result).toContain("使えるリポジトリ一覧");
+    expect(result).toContain("Available Repositories");
   });
 
-  test("allRepos が空配列のときリポジトリ一覧セクションは含まれない", () => {
+  test("omits repo list section when allRepos is empty", () => {
     const result = buildOrchestrationPrompt({ ...base, allRepos: [] });
-    expect(result).not.toContain("使えるリポジトリ一覧");
+    expect(result).not.toContain("Available Repositories");
   });
 
-  test("threadContext が指定されると会話履歴が含まれる", () => {
+  test("includes thread history when threadContext is provided", () => {
     const result = buildOrchestrationPrompt({
       ...base,
-      threadContext: "過去の会話内容です",
+      threadContext: "past conversation content",
     });
-    expect(result).toContain("スレッドの会話履歴");
-    expect(result).toContain("過去の会話内容です");
+    expect(result).toContain("Thread History");
+    expect(result).toContain("past conversation content");
   });
 
-  test("threadContext なしのとき会話履歴セクションは含まれない", () => {
+  test("omits thread history section when threadContext is absent", () => {
     const result = buildOrchestrationPrompt(base);
-    expect(result).not.toContain("スレッドの会話履歴");
+    expect(result).not.toContain("Thread History");
   });
 
-  test("linearTeamKey が指定されるとチームキーがプロンプトに含まれる", () => {
+  test("includes linear team key when linearTeamKey is provided", () => {
     const result = buildOrchestrationPrompt({ ...base, linearTeamKey: "YUN" });
     expect(result).toContain("YUN");
   });
 
-  test("linearTeamKey なしのときチームキー部分が省略される", () => {
+  test("omits team key when linearTeamKey is absent", () => {
     const result = buildOrchestrationPrompt(base);
-    // フルワークフローのステップ1は存在するが、チームキー括弧部分はない
-    expect(result).not.toContain("チームキー:");
+    expect(result).not.toContain("Team key:");
   });
 
-  test("返り値は string", () => {
+  test("returns a string", () => {
     const result = buildOrchestrationPrompt(base);
     expect(typeof result).toBe("string");
     expect(result.length).toBeGreaterThan(100);
@@ -99,36 +97,36 @@ describe("buildOrchestrationPrompt", () => {
 });
 
 describe("parseResultMetadata", () => {
-  test("__RESULT__ ブロックなしのときテキストをそのまま返す", () => {
-    const text = "作業が完了しました。";
+  test("returns text as-is when there is no __RESULT__ block", () => {
+    const text = "Work completed.";
     const result = parseResultMetadata(text);
-    expect(result).toEqual({ resultText: "作業が完了しました。" });
+    expect(result).toEqual({ resultText: "Work completed." });
     expect(result.issueIdentifier).toBeUndefined();
     expect(result.branch).toBeUndefined();
     expect(result.prUrl).toBeUndefined();
   });
 
-  test("TICKET を正しくパースする", () => {
-    const text = "完了！\n```\n__RESULT__\nTICKET: YUN-123\n```";
+  test("parses TICKET correctly", () => {
+    const text = "Done!\n```\n__RESULT__\nTICKET: YUN-123\n```";
     const result = parseResultMetadata(text);
     expect(result.issueIdentifier).toBe("YUN-123");
   });
 
-  test("BRANCH を正しくパースする", () => {
-    const text = "完了！\n```\n__RESULT__\nBRANCH: hanni/my-feature\n```";
+  test("parses BRANCH correctly", () => {
+    const text = "Done!\n```\n__RESULT__\nBRANCH: hanni/my-feature\n```";
     const result = parseResultMetadata(text);
     expect(result.branch).toBe("hanni/my-feature");
   });
 
-  test("PR URL を正しくパースする", () => {
-    const text = "完了！\n```\n__RESULT__\nPR: https://github.com/owner/repo/pull/42\n```";
+  test("parses PR URL correctly", () => {
+    const text = "Done!\n```\n__RESULT__\nPR: https://github.com/owner/repo/pull/42\n```";
     const result = parseResultMetadata(text);
     expect(result.prUrl).toBe("https://github.com/owner/repo/pull/42");
   });
 
-  test("TICKET・BRANCH・PR を全部パースする", () => {
+  test("parses TICKET, BRANCH, and PR together", () => {
     const text = [
-      "実装が完了しました！",
+      "Implementation complete!",
       "```",
       "__RESULT__",
       "TICKET: YUN-456",
@@ -142,9 +140,9 @@ describe("parseResultMetadata", () => {
     expect(result.prUrl).toBe("https://github.com/owner/repo/pull/99");
   });
 
-  test("__RESULT__ ブロックが resultText から除去される", () => {
+  test("removes __RESULT__ block from resultText", () => {
     const text = [
-      "実装が完了しました！",
+      "Implementation complete!",
       "```",
       "__RESULT__",
       "TICKET: YUN-789",
@@ -153,17 +151,17 @@ describe("parseResultMetadata", () => {
     const result = parseResultMetadata(text);
     expect(result.resultText).not.toContain("__RESULT__");
     expect(result.resultText).not.toContain("TICKET:");
-    expect(result.resultText).toContain("実装が完了しました！");
+    expect(result.resultText).toContain("Implementation complete!");
   });
 
-  test("TICKET なしのとき issueIdentifier は undefined", () => {
+  test("issueIdentifier is undefined when no TICKET", () => {
     const text = "```\n__RESULT__\nBRANCH: hanni/x\n```";
     const result = parseResultMetadata(text);
     expect(result.issueIdentifier).toBeUndefined();
     expect(result.branch).toBe("hanni/x");
   });
 
-  test("空文字列でも resultText を返す", () => {
+  test("returns empty resultText for empty string input", () => {
     const result = parseResultMetadata("");
     expect(result.resultText).toBe("");
   });

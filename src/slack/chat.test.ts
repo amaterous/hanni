@@ -48,7 +48,7 @@ describe("formatForSlack", () => {
   });
 
   test("text with no markdown is returned as-is (trimmed)", () => {
-    const text = "ごめん、うまく返せなかった〜 もう一回言ってみて！";
+    const text = "Sorry, I couldn't respond. Please try again!";
     expect(formatForSlack(text).trim()).toBe(text);
   });
 });

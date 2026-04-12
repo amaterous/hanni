@@ -16,6 +16,17 @@ mock.module("fs", () => ({
 import { handleAdminAPI } from "./api";
 import type { HanniConfig, SessionInfo } from "../types";
 
+// ── Test constants ─────────────────────────────────────────────────────────
+const WS_ID = "ws1";
+const WS_NAME = "YunWorkspace";
+const LINEAR_API_KEY = "lin_api_test";
+const IN_REVIEW_STATE_ID = "state-1";
+const CLAUDE_MODEL = "claude-sonnet-4-6";
+const CLAUDE_FALLBACK_MODEL = "claude-haiku-4-5-20251001";
+const CONFIG_PATH = "/cfg.json";
+const PATHS = { repos: "/repos", worktrees: "/worktrees", logs: "/logs" } as const;
+// ──────────────────────────────────────────────────────────────────────────
+
 // Helper: create a minimal HanniConfig
 function makeConfig(overrides: Partial<HanniConfig> = {}): HanniConfig {
   return {
@@ -25,16 +36,16 @@ function makeConfig(overrides: Partial<HanniConfig> = {}): HanniConfig {
     linear: {
       webhookSecret: "secret",
       workspaces: {
-        ws1: {
-          name: "YunWorkspace",
-          apiKey: "lin_api_test",
-          inReviewStateId: "state-1",
+        [WS_ID]: {
+          name: WS_NAME,
+          apiKey: LINEAR_API_KEY,
+          inReviewStateId: IN_REVIEW_STATE_ID,
         },
       },
     },
     repositories: [],
-    claude: { model: "claude-3-5-sonnet", fallbackModel: "claude-3-haiku" },
-    paths: { repos: "/repos", worktrees: "/worktrees", logs: "/logs" },
+    claude: { model: CLAUDE_MODEL, fallbackModel: CLAUDE_FALLBACK_MODEL },
+    paths: PATHS,
     ...overrides,
   };
 }
@@ -64,69 +75,69 @@ beforeEach(() => {
 });
 
 describe("handleAdminAPI — unknown routes", () => {
-  test("未知のパスは null を返す", async () => {
+  test("returns null for unknown path", async () => {
     const config = makeConfig();
     const req = makeReq("GET", "/unknown");
     const url = new URL("http://localhost/unknown");
-    const result = await handleAdminAPI(req, url, config, "/cfg.json", new Map());
+    const result = await handleAdminAPI(req, url, config, CONFIG_PATH, new Map());
     expect(result).toBeNull();
   });
 
-  test("POST /api/config は null を返す（未定義エンドポイント）", async () => {
+  test("POST /api/config returns null (undefined endpoint)", async () => {
     const config = makeConfig();
     const req = makeReq("POST", "/api/config");
     const url = new URL("http://localhost/api/config");
-    const result = await handleAdminAPI(req, url, config, "/cfg.json", new Map());
+    const result = await handleAdminAPI(req, url, config, CONFIG_PATH, new Map());
     expect(result).toBeNull();
   });
 });
 
 describe("GET /api/config", () => {
-  test("config を JSON で返す", async () => {
+  test("returns config as JSON", async () => {
     const config = makeConfig();
     const req = makeReq("GET", "/api/config");
     const url = new URL("http://localhost/api/config");
-    const res = await handleAdminAPI(req, url, config, "/cfg.json", new Map());
+    const res = await handleAdminAPI(req, url, config, CONFIG_PATH, new Map());
     expect(res).not.toBeNull();
     const body = await res!.json() as Record<string, unknown>;
     expect(body.provider).toBe("claude");
     expect(body.agent).toEqual({ name: "Hanni" });
   });
 
-  test("openai.apiKey が **** にマスクされる", async () => {
+  test("masks openai.apiKey as *****", async () => {
     const config = makeConfig({
       openai: { apiKey: "secret-key", model: "gpt-4o" },
     });
     const req = makeReq("GET", "/api/config");
     const url = new URL("http://localhost/api/config");
-    const res = await handleAdminAPI(req, url, config, "/cfg.json", new Map());
+    const res = await handleAdminAPI(req, url, config, CONFIG_PATH, new Map());
     const body = await res!.json() as { openai: { apiKey: string } };
     expect(body.openai.apiKey).toBe("*****");
   });
 
-  test("workspaces が hasToken 付きで返る", async () => {
+  test("returns workspaces with hasToken field", async () => {
     const config = makeConfig();
     const req = makeReq("GET", "/api/config");
     const url = new URL("http://localhost/api/config");
-    const res = await handleAdminAPI(req, url, config, "/cfg.json", new Map());
+    const res = await handleAdminAPI(req, url, config, CONFIG_PATH, new Map());
     const body = await res!.json() as { workspaces: { id: string; hasToken: boolean }[] };
     expect(body.workspaces).toHaveLength(1);
-    expect(body.workspaces[0]!.id).toBe("ws1");
+    expect(body.workspaces[0]!.id).toBe(WS_ID);
     expect(body.workspaces[0]!.hasToken).toBe(true);
   });
 });
 
 describe("GET /api/sessions", () => {
-  test("空のセッションマップ → 空配列", async () => {
+  test("returns empty array when sessions map is empty", async () => {
     const config = makeConfig();
     const req = makeReq("GET", "/api/sessions");
     const url = new URL("http://localhost/api/sessions");
-    const res = await handleAdminAPI(req, url, config, "/cfg.json", new Map());
+    const res = await handleAdminAPI(req, url, config, CONFIG_PATH, new Map());
     const body = await res!.json();
     expect(body).toEqual([]);
   });
 
-  test("セッションが返る", async () => {
+  test("returns sessions list", async () => {
     const config = makeConfig();
     const sessions = new Map<string, SessionInfo>();
     sessions.set("YUN-1:thread-1", {
@@ -138,7 +149,7 @@ describe("GET /api/sessions", () => {
     });
     const req = makeReq("GET", "/api/sessions");
     const url = new URL("http://localhost/api/sessions");
-    const res = await handleAdminAPI(req, url, config, "/cfg.json", new Map(sessions));
+    const res = await handleAdminAPI(req, url, config, CONFIG_PATH, new Map(sessions));
     const body = await res!.json() as { key: string }[];
     expect(body).toHaveLength(1);
     expect(body[0]!.key).toBe("YUN-1:thread-1");
@@ -146,10 +157,10 @@ describe("GET /api/sessions", () => {
 });
 
 describe("DELETE /api/repositories/:name", () => {
-  test("存在するリポジトリを削除する", async () => {
+  test("deletes an existing repository", async () => {
     const config = makeConfig({
       repositories: [
-        { name: "my-repo", github: "owner/my-repo", baseBranch: "main", linearWorkspaceId: "ws1", projectKeys: [] },
+        { name: "my-repo", github: "owner/my-repo", baseBranch: "main", linearWorkspaceId: WS_ID, projectKeys: [] },
       ],
     });
     // persistConfig reads the configPath
@@ -158,18 +169,18 @@ describe("DELETE /api/repositories/:name", () => {
     );
     const req = makeReq("DELETE", "/api/repositories/my-repo");
     const url = new URL("http://localhost/api/repositories/my-repo");
-    const res = await handleAdminAPI(req, url, config, "/cfg.json", new Map());
+    const res = await handleAdminAPI(req, url, config, CONFIG_PATH, new Map());
     expect(res).not.toBeNull();
     const body = await res!.json();
     expect(body).toEqual({ ok: true });
     expect(config.repositories).toHaveLength(0);
   });
 
-  test("存在しないリポジトリ → 404", async () => {
+  test("returns 404 for nonexistent repository", async () => {
     const config = makeConfig({ repositories: [] });
     const req = makeReq("DELETE", "/api/repositories/nonexistent");
     const url = new URL("http://localhost/api/repositories/nonexistent");
-    const res = await handleAdminAPI(req, url, config, "/cfg.json", new Map());
+    const res = await handleAdminAPI(req, url, config, CONFIG_PATH, new Map());
     expect(res).not.toBeNull();
     const body = await res!.json() as { error: string };
     expect(body.error).toBe("Not found");
@@ -177,16 +188,16 @@ describe("DELETE /api/repositories/:name", () => {
 });
 
 describe("POST /api/repositories", () => {
-  test("バリデーション失敗 → 400", async () => {
+  test("returns 400 on validation failure", async () => {
     const config = makeConfig();
     const req = makeReq("POST", "/api/repositories", { name: "x" }); // missing github, linearWorkspaceId
     const url = new URL("http://localhost/api/repositories");
-    const res = (await handleAdminAPI(req, url, config, "/cfg.json", new Map()))!;
+    const res = (await handleAdminAPI(req, url, config, CONFIG_PATH, new Map()))!;
     const body = await readBody(res) as { error: string };
     expect(body.error).toContain("required");
   });
 
-  test("有効なボディ → リポジトリ追加", async () => {
+  test("adds repository on valid body", async () => {
     const config = makeConfig();
     mockReadFileSync.mockImplementation(() =>
       JSON.stringify({ agent: config.agent, repositories: [], linear: config.linear })
@@ -194,10 +205,10 @@ describe("POST /api/repositories", () => {
     const req = makeReq("POST", "/api/repositories", {
       name: "new-repo",
       github: "owner/new-repo",
-      linearWorkspaceId: "ws1",
+      linearWorkspaceId: WS_ID,
     });
     const url = new URL("http://localhost/api/repositories");
-    const res = (await handleAdminAPI(req, url, config, "/cfg.json", new Map()))!;
+    const res = (await handleAdminAPI(req, url, config, CONFIG_PATH, new Map()))!;
     const body = await readBody(res);
     expect(body).toEqual({ ok: true });
     expect(config.repositories).toHaveLength(1);
@@ -207,19 +218,19 @@ describe("POST /api/repositories", () => {
 });
 
 describe("PUT /api/repositories/:name", () => {
-  test("存在しないリポジトリ → 404", async () => {
+  test("returns 404 for nonexistent repository", async () => {
     const config = makeConfig({ repositories: [] });
     const req = makeReq("PUT", "/api/repositories/missing", { baseBranch: "develop" });
     const url = new URL("http://localhost/api/repositories/missing");
-    const res = (await handleAdminAPI(req, url, config, "/cfg.json", new Map()))!;
+    const res = (await handleAdminAPI(req, url, config, CONFIG_PATH, new Map()))!;
     const body = await readBody(res) as { error: string };
     expect(body.error).toBe("Not found");
   });
 
-  test("存在するリポジトリを更新する", async () => {
+  test("updates an existing repository", async () => {
     const config = makeConfig({
       repositories: [
-        { name: "my-repo", github: "owner/my-repo", baseBranch: "main", linearWorkspaceId: "ws1", projectKeys: [] },
+        { name: "my-repo", github: "owner/my-repo", baseBranch: "main", linearWorkspaceId: WS_ID, projectKeys: [] },
       ],
     });
     mockReadFileSync.mockImplementation(() =>
@@ -227,7 +238,7 @@ describe("PUT /api/repositories/:name", () => {
     );
     const req = makeReq("PUT", "/api/repositories/my-repo", { baseBranch: "develop" });
     const url = new URL("http://localhost/api/repositories/my-repo");
-    const res = (await handleAdminAPI(req, url, config, "/cfg.json", new Map()))!;
+    const res = (await handleAdminAPI(req, url, config, CONFIG_PATH, new Map()))!;
     const body = await readBody(res);
     expect(body).toEqual({ ok: true });
     expect(config.repositories[0]!.baseBranch).toBe("develop");
@@ -235,38 +246,38 @@ describe("PUT /api/repositories/:name", () => {
 });
 
 describe("PUT /api/workspaces/:id", () => {
-  test("存在しないワークスペース → 404", async () => {
+  test("returns 404 for nonexistent workspace", async () => {
     const config = makeConfig();
     const req = makeReq("PUT", "/api/workspaces/nonexistent", { inReviewStateId: "s1" });
     const url = new URL("http://localhost/api/workspaces/nonexistent");
-    const res = (await handleAdminAPI(req, url, config, "/cfg.json", new Map()))!;
+    const res = (await handleAdminAPI(req, url, config, CONFIG_PATH, new Map()))!;
     const body = await readBody(res) as { error: string };
     expect(body.error).toBe("Not found");
   });
 
-  test("ワークスペースの inReviewStateId を更新する", async () => {
+  test("updates workspace inReviewStateId", async () => {
     const config = makeConfig();
     mockReadFileSync.mockImplementation(() =>
       JSON.stringify({ agent: config.agent, repositories: [], linear: config.linear })
     );
-    const req = makeReq("PUT", "/api/workspaces/ws1", { inReviewStateId: "new-state" });
-    const url = new URL("http://localhost/api/workspaces/ws1");
-    const res = (await handleAdminAPI(req, url, config, "/cfg.json", new Map()))!;
+    const req = makeReq("PUT", `/api/workspaces/${WS_ID}`, { inReviewStateId: "new-state" });
+    const url = new URL(`http://localhost/api/workspaces/${WS_ID}`);
+    const res = (await handleAdminAPI(req, url, config, CONFIG_PATH, new Map()))!;
     const body = await readBody(res);
     expect(body).toEqual({ ok: true });
-    expect(config.linear.workspaces["ws1"]!.inReviewStateId).toBe("new-state");
+    expect(config.linear.workspaces[WS_ID]!.inReviewStateId).toBe("new-state");
   });
 });
 
 describe("PUT /api/agent", () => {
-  test("エージェント名を更新する", async () => {
+  test("updates agent name", async () => {
     const config = makeConfig();
     mockReadFileSync.mockImplementation(() =>
       JSON.stringify({ agent: config.agent, repositories: [], linear: config.linear })
     );
     const req = makeReq("PUT", "/api/agent", { name: "NewName" });
     const url = new URL("http://localhost/api/agent");
-    const res = (await handleAdminAPI(req, url, config, "/cfg.json", new Map()))!;
+    const res = (await handleAdminAPI(req, url, config, CONFIG_PATH, new Map()))!;
     const body = await readBody(res);
     expect(body).toEqual({ ok: true });
     expect(config.agent.name).toBe("NewName");
@@ -274,17 +285,17 @@ describe("PUT /api/agent", () => {
 });
 
 describe("GET /api/logs", () => {
-  test("logsDir が存在しない → 空配列", async () => {
+  test("returns empty array when logsDir does not exist", async () => {
     const config = makeConfig();
     mockExistsSync.mockImplementation((_p: unknown) => false);
     const req = makeReq("GET", "/api/logs");
     const url = new URL("http://localhost/api/logs");
-    const res = (await handleAdminAPI(req, url, config, "/cfg.json", new Map()))!;
+    const res = (await handleAdminAPI(req, url, config, CONFIG_PATH, new Map()))!;
     const body = await res.json();
     expect(body).toEqual([]);
   });
 
-  test("チケットディレクトリ一覧を返す", async () => {
+  test("returns list of ticket directories", async () => {
     const config = makeConfig();
     mockExistsSync.mockImplementation((_p: unknown) => true);
     mockReaddirSync.mockImplementation((p: unknown) => {
@@ -297,9 +308,9 @@ describe("GET /api/logs", () => {
     );
     const req = makeReq("GET", "/api/logs");
     const url = new URL("http://localhost/api/logs");
-    const res = (await handleAdminAPI(req, url, config, "/cfg.json", new Map()))!;
+    const res = (await handleAdminAPI(req, url, config, CONFIG_PATH, new Map()))!;
     const body = await res.json() as { ticket: string }[];
-    // "OTHER" はフィルタされて YUN-* のみ
+    // "OTHER" is filtered out — only ticket-format entries (e.g. YUN-*) are returned
     expect(body.map((b) => b.ticket).sort()).toEqual(["YUN-1", "YUN-2"]);
   });
 });

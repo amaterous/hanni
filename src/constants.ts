@@ -29,5 +29,6 @@ export const SERVER_PATH_HEALTH = "/health";
 export const SERVER_PATH_SLACK_EVENTS = "/slack/events";
 
 // Regex
+/** Matches screenshot-related keywords in Japanese (スクショ / スクリーンショット) and English. */
 export const SCREENSHOT_KEYWORDS_RE = /(スクショ|screenshot|スクリーンショット)/i;
 export const DOMAIN_EXTENSION_RE = /\.(?:site|com|net|org|dev|app|io)/;
