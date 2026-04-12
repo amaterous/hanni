@@ -243,7 +243,12 @@ export function handleAdminAPI(
 }
 
 function persistConfig(config: HanniConfig, configPath: string) {
-  const current = JSON.parse(readFileSync(configPath, "utf-8"));
+  let current: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  try {
+    current = JSON.parse(readFileSync(configPath, "utf-8"));
+  } catch (err) {
+    throw new Error(`Failed to parse ${configPath} for saving: ${err}`);
+  }
   current.agent = config.agent;
   current.repositories = config.repositories;
   current.claude = config.claude;

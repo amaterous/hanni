@@ -54,7 +54,9 @@ export async function pushAndCreatePR(params: {
       const url = JSON.parse(existing.stdout).url;
       log.info(`${issueIdentifier}: PR already exists → ${url}`);
       return { prUrl: url };
-    } catch {}
+    } catch (err) {
+      log.warn(`${issueIdentifier}: failed to parse existing PR URL from gh output: ${err}`);
+    }
   }
 
   // Create draft PR

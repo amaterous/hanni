@@ -47,6 +47,10 @@ export async function runClaudeSession(params: {
         cwd,
         model,
         fallbackModel: fallbackModel || undefined,
+        // bypassPermissions is intentional: hanni is a fully automated coding agent
+        // that needs unrestricted file/shell access to implement tickets end-to-end.
+        // Never run hanni with untrusted input — treat it like a developer with full
+        // repo access. See SECURITY.md for the trust model.
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
         resume: resumeSessionId,

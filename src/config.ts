@@ -107,11 +107,22 @@ export function loadConfig(configPath = "./config.json", tokensPath = DEFAULT_TO
 
   // Fall back to config.json
   const raw = readFileSync(configPath, "utf-8");
-  const config: HanniConfig = JSON.parse(raw);
+  let config: HanniConfig;
+  try {
+    config = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`Failed to parse ${configPath}: ${err}`);
+  }
 
   // Merge tokens.json if present (Linear OAuth, OpenAI, Vercel)
   if (existsSync(tokensPath)) {
-    const tokens = JSON.parse(readFileSync(tokensPath, "utf-8"));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let tokens: any;
+    try {
+      tokens = JSON.parse(readFileSync(tokensPath, "utf-8"));
+    } catch (err) {
+      throw new Error(`Failed to parse ${tokensPath}: ${err}`);
+    }
     if (tokens.vercel?.token) {
       config.vercel = { ...config.vercel, token: tokens.vercel.token };
     }
@@ -154,7 +165,12 @@ export function loadConfig(configPath = "./config.json", tokensPath = DEFAULT_TO
 export function saveConfig(config: HanniConfig, configPath = "./config.json") {
   if (!existsSync(configPath)) return;
   const raw = readFileSync(configPath, "utf-8");
-  const existing = JSON.parse(raw);
+  let existing: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  try {
+    existing = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`Failed to parse ${configPath} for saving: ${err}`);
+  }
   existing.repositories = config.repositories;
   writeFileSync(configPath, JSON.stringify(existing, null, 2));
 }

@@ -40,7 +40,8 @@ Click the button above, then set these environment variables:
 
 | Variable | Description |
 |---|---|
-| `CLAUDE_CODE_OAUTH_TOKEN` | Your Claude Max plan token (see below) |
+| `CLAUDE_CODE_OAUTH_TOKEN` | **Recommended.** Your Claude Max plan OAuth token — uses your existing subscription, no separate API billing. Get it with `./scripts/get-claude-token.sh`. |
+| `ANTHROPIC_API_KEY` | Alternative if you don't have Claude Max. Uses pay-per-token API billing. Set one or the other, not both. |
 | `LINEAR_WEBHOOK_SECRET` | From Linear → Settings → API → Webhooks |
 | `LINEAR_API_TOKEN` | Linear Personal API Token (`lin_api_xxx`) |
 | `LINEAR_WORKSPACE_ID` | Your Linear workspace ID |
@@ -50,6 +51,7 @@ Click the button above, then set these environment variables:
 | `SLACK_TEAM_ID` | Your Slack workspace ID (e.g. `T0XXXXXXX`) |
 | `GITHUB_TOKEN` | Personal access token with repo scope |
 | `MAX_CONCURRENT_SESSIONS` | Max parallel Claude sessions (default: `8`) |
+| `HANNI_SERVER_URL` | *(GitHub Actions only)* Full URL of your server, e.g. `http://1.2.3.4:3460`. Used by the health-check workflow. Set as a [GitHub Actions secret](https://docs.github.com/en/actions/security-guides/encrypted-secrets). |
 
 **Optional:**
 
@@ -146,7 +148,23 @@ Results posted back to Slack
 
 For advanced setups (multiple Linear workspaces, multiple Slack workspaces), use `config.json` instead of env vars. See [`config.example.jsonc`](./config.example.jsonc).
 
+## Session recovery
+
+Sessions survive container restarts — state is persisted to `logs/sessions.json`. If a session is stuck as "running" after a crash, it is automatically reset to "idle" on the next startup.
+
+To manually resume a stuck session, restart the server. hanni will reload the session from disk and allow the next comment to resume it.
+
+## Security
+
+hanni runs Claude with full file and shell access (`bypassPermissions`). This is required for autonomous coding — treat it like a developer with full repo access.
+
+- Only expose hanni to trusted Slack workspaces
+- Credentials (`config.json`, `tokens.json`) are gitignored and never committed
+- See [SECURITY.md](./SECURITY.md) for the full trust model and credential handling guide
+
 ## Local development
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full local setup guide including Hookdeck webhook forwarding and test event examples.
 
 ```bash
 cp config.example.jsonc config.json
@@ -155,5 +173,3 @@ cp config.example.jsonc config.json
 bun install
 bun run src/index.ts
 ```
-
-Use [ngrok](https://ngrok.com) or [hookdeck](https://hookdeck.com) to expose your local server to Slack and Linear webhooks.

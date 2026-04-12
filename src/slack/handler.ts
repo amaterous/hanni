@@ -144,7 +144,9 @@ export function createSlackHandler(
       const activeClient = isTest ? createDryRunClient() : client;
 
       if (!isTest) {
-        client.addReaction(event.channel, event.ts, "eyes").catch(() => {});
+        client.addReaction(event.channel, event.ts, "eyes").catch((err) => {
+          log.warn(`Failed to add 'eyes' reaction: ${err}`);
+        });
       }
 
       // Download attached images to temp files
@@ -384,7 +386,9 @@ URLが特定できない場合は __URL__UNKNOWN__URL__ と出力して。`,
  } catch (err) {
     log.error("handleMention unexpected error:", err);
     const errMsg = err instanceof Error ? err.message : String(err);
-    await client.postMessage(channel, `エラーが出ちゃった...\n\`\`\`${errMsg}\`\`\``, threadTs).catch(() => {});
+    await client.postMessage(channel, `エラーが出ちゃった...\n\`\`\`${errMsg}\`\`\``, threadTs).catch((e) => {
+      log.warn(`Failed to post fallback error message to Slack: ${e}`);
+    });
   }
 }
 

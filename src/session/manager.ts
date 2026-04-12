@@ -199,7 +199,9 @@ export class SessionManager {
       // Post Claude's response — use postAgentActivity to avoid Comment webhook loop
       if (result.resultText) {
         if (agentSessionId) {
-          await client.postAgentActivity(agentSessionId, "response", result.resultText).catch(() => {});
+          await client.postAgentActivity(agentSessionId, "response", result.resultText).catch((err) => {
+            log.warn(`${sessionInfo!.issueIdentifier}: failed to post response activity: ${err}`);
+          });
         } else if (sessionInfo.issueId) {
           await client.createComment(sessionInfo.issueId, result.resultText);
         }
@@ -222,7 +224,9 @@ export class SessionManager {
           this.saveToDisk();
           // Use postAgentActivity if available (avoids triggering a Comment webhook loop)
           if (agentSessionId) {
-            await client.postAgentActivity(agentSessionId, "action", `**PR:** ${prUrl}`).catch(() => {});
+            await client.postAgentActivity(agentSessionId, "action", `**PR:** ${prUrl}`).catch((err) => {
+              log.warn(`${sessionInfo!.issueIdentifier}: failed to post PR activity: ${err}`);
+            });
           } else if (sessionInfo.issueId) {
             await client.createComment(sessionInfo.issueId, `**PR:** ${prUrl}`);
           }
@@ -232,7 +236,9 @@ export class SessionManager {
       log.error(`${sessionInfo.issueIdentifier}: handleComment error:`, err);
       // Report error to Agent Session so Linear doesn't show "Did Not Respond"
       if (agentSessionId) {
-        await client.postAgentActivity(agentSessionId, "error", `エラーが発生しました: ${err}`).catch(() => {});
+        await client.postAgentActivity(agentSessionId, "error", `エラーが発生しました: ${err}`).catch((e) => {
+          log.warn(`${sessionInfo.issueIdentifier}: failed to post error activity: ${e}`);
+        });
       }
     } finally {
       this.running--;
@@ -356,7 +362,9 @@ export class SessionManager {
     const ws = this.config.linear.workspaces[workspaceId]!;
 
     if (agentSessionId) {
-      await client.postAgentActivity(agentSessionId, "action", `Working on **${repo.name}** repository...`).catch(() => {});
+      await client.postAgentActivity(agentSessionId, "action", `Working on **${repo.name}** repository...`).catch((err) => {
+        log.warn(`${issue.identifier}: failed to post initial activity: ${err}`);
+      });
     }
 
     const repoPath = await ensureRepo(repo, this.config.paths.repos);
@@ -387,7 +395,9 @@ export class SessionManager {
     this.saveToDisk();
 
     if (agentSessionId) {
-      await client.postAgentActivity(agentSessionId, "action", `Running Claude on branch \`${branchName}\`...`).catch(() => {});
+      await client.postAgentActivity(agentSessionId, "action", `Running Claude on branch \`${branchName}\`...`).catch((err) => {
+        log.warn(`${issue.identifier}: failed to post branch activity: ${err}`);
+      });
     }
 
     const issueMessage = [
@@ -438,13 +448,17 @@ export class SessionManager {
 
     if (agentSessionId) {
       if (parsed.resultText) {
-        await client.postAgentActivity(agentSessionId, "response", parsed.resultText).catch(() => {});
+        await client.postAgentActivity(agentSessionId, "response", parsed.resultText).catch((err) => {
+          log.warn(`${issue.identifier}: failed to post result activity: ${err}`);
+        });
       }
       const parts = [];
       if (parsed.prUrl) parts.push(`**PR:** ${parsed.prUrl}`);
       if (parsed.branch) parts.push(`**Branch:** \`${parsed.branch}\``);
       parts.push(`(cost: $${result.costUsd.toFixed(2)})`);
-      await client.postAgentActivity(agentSessionId, "action", parts.join(" ")).catch(() => {});
+      await client.postAgentActivity(agentSessionId, "action", parts.join(" ")).catch((err) => {
+        log.warn(`${issue.identifier}: failed to post summary activity: ${err}`);
+      });
     }
 
     this.abortControllers.delete(issue.identifier);

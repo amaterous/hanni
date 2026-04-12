@@ -61,7 +61,9 @@ export function createWebhookHandler(
           const commentBody = agentSession.comment!.body;
           log.info(`Agent session from comment: ${issue.identifier} → resume (${commentBody.slice(0, 50)}...)`);
 
-          await client.postAgentActivity(agentSession.id, "thought", "Resuming...").catch(() => {});
+          await client.postAgentActivity(agentSession.id, "thought", "Resuming...").catch((err) => {
+            log.warn(`${issue.identifier}: failed to post 'Resuming' activity: ${err}`);
+          });
 
           await sessionManager.handleComment(
             issue.id,
