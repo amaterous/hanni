@@ -1,0 +1,46 @@
+name: Bro Health Check
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check hanni health endpoint
+        id: hanni
+        run: |
+          HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' \
+            --connect-timeout 10 --max-time 20 \
+            "http://34.24.123.203:3460/health" 2>/dev/null || echo "000")
+          echo "http_code=$HTTP_CODE" >> "$GITHUB_OUTPUT"
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ hanni health: OK"
+          else
+            echo "❌ hanni health: HTTP $HTTP_CODE"
+          fi
+
+      - name: Set bot presence away (on failure)
+        if: steps.hanni.outputs.http_code != '200'
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        run: |
+          if [ -z "$SLACK_BOT_TOKEN" ]; then
+            echo "SLACK_BOT_TOKEN not set, skipping"
+            exit 0
+          fi
+          curl -s -X POST "https://slack.com/api/users.setPresence" \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -d "presence=away"
+
+      - name: Slack notification (failure)
+        if: steps.hanni.outputs.http_code != '200'
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          MSG="🚨 hanni offline\n\n❌ /health — HTTP ${{ steps.hanni.outputs.http_code }}\n\n復旧: \`gcloud compute ssh bro-runners-new --project=neurometrics-484602 --zone=us-east1-b\`"
+          curl -s -X POST "$SLACK_WEBHOOK" \
+            -H 'Content-Type: application/json' \
+            -d "{\"text\": $(echo -e "$MSG" | jq -Rs .)}"
