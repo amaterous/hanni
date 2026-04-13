@@ -49,6 +49,7 @@ RUN bun install --frozen-lockfile
 COPY --chown=hanni:hanni src/ ./src/
 COPY --chown=hanni:hanni tsconfig.json ./
 COPY --chown=hanni:hanni config.example.jsonc ./
+COPY --chown=hanni:hanni CLAUDE.md.example ./
 
 # データディレクトリ（Fly volume がマウントされる）
 RUN mkdir -p /data
@@ -56,4 +57,4 @@ RUN mkdir -p /data
 EXPOSE 3460
 
 # /data を CWD にして起動（config.json, tokens.json, repos/, worktrees/, logs/ が /data 以下に）
-CMD ["sh", "-c", "mkdir -p /data/repos /data/worktrees /data/logs /data/.claude && ln -sf /data/.claude /home/hanni/.claude && cd /data && exec bun /app/src/index.ts"]
+CMD ["sh", "-c", "mkdir -p /data/repos /data/worktrees /data/logs /data/.claude && [ ! -f /data/.claude/CLAUDE.md ] && cp /app/CLAUDE.md.example /data/.claude/CLAUDE.md ; ln -sf /data/.claude /home/hanni/.claude && cd /data && exec bun /app/src/index.ts"]
