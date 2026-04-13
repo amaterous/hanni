@@ -1,6 +1,23 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll, mock } from "bun:test";
 import { mock as bunMock } from "bun:test";
 import { constants as fsConstants } from "node:fs";
+import {
+  TEST_WS_ID,
+  TEST_LINEAR_API_KEY,
+  TEST_MODEL_SONNET,
+  TEST_REPOS_DIR,
+  TEST_WORKTREES_DIR,
+  TEST_LOGS_DIR,
+  TEST_REPO_NAME,
+  TEST_REPO_GITHUB,
+  TEST_REPO_PATH,
+  TEST_BASE_BRANCH,
+  TEST_ISSUE_ID,
+  TEST_ISSUE_YUN_1,
+  TEST_ISSUE_YUN_2,
+  TEST_ISSUE_YUN_3,
+  TEST_SESSION_ID,
+} from "../__tests__/test-constants";
 
 // ── mock function instances (module-level so resetMocks() can reference them) ─
 
@@ -16,15 +33,15 @@ const MockLinearClient = mock(() => ({
   postAgentActivity: mockPostAgentActivity,
 }));
 
-const mockEnsureRepo = mock(async () => "/repos/myrepo");
+const mockEnsureRepo = mock(async () => TEST_REPO_PATH);
 const mockCreateWorktree = mock(async () => ({
-  worktreePath: "/worktrees/abc",
+  worktreePath: `${TEST_WORKTREES_DIR}/abc`,
   branchName: "hanni/feature-branch",
 }));
 const mockRouteToRepository = mock(() => null);
 
 const mockRunModelSession = mock(async (_config: any, _params: any) => ({
-  sessionId: "sess-123",
+  sessionId: TEST_SESSION_ID,
   success: true,
   costUsd: 0.05,
   durationMs: 500,
@@ -92,20 +109,20 @@ beforeAll(async () => {
 
 function makeConfig(overrides: Record<string, unknown> = {}) {
   return {
-    paths: { logs: "/logs", repos: "/repos", worktrees: "/worktrees" },
+    paths: { logs: TEST_LOGS_DIR, repos: TEST_REPOS_DIR, worktrees: TEST_WORKTREES_DIR },
     linear: {
       workspaces: {
-        ws1: { apiKey: "lin_key", inReviewStateId: "state-1", viewerId: "viewer-1" },
+        [TEST_WS_ID]: { apiKey: TEST_LINEAR_API_KEY, inReviewStateId: "state-1", viewerId: "viewer-1" },
       },
     },
-    claude: { model: "claude-3-5-sonnet", fallbackModel: undefined },
+    claude: { model: TEST_MODEL_SONNET, fallbackModel: undefined },
     agent: { name: "hanni" },
     repositories: [
       {
-        name: "myrepo",
-        github: "owner/myrepo",
-        localPath: "/repos/myrepo",
-        baseBranch: "main",
+        name: TEST_REPO_NAME,
+        github: TEST_REPO_GITHUB,
+        localPath: TEST_REPO_PATH,
+        baseBranch: TEST_BASE_BRANCH,
       },
     ],
     ...overrides,
@@ -114,8 +131,8 @@ function makeConfig(overrides: Record<string, unknown> = {}) {
 
 function makeIssue(overrides: Record<string, unknown> = {}) {
   return {
-    id: "issue-1",
-    identifier: "YUN-1",
+    id: TEST_ISSUE_ID,
+    identifier: TEST_ISSUE_YUN_1,
     title: "Test issue",
     description: "Fix something",
     ...overrides,
@@ -136,17 +153,17 @@ function resetMocks() {
     postAgentActivity: mockPostAgentActivity,
   }));
   mockEnsureRepo.mockReset();
-  mockEnsureRepo.mockImplementation(async () => "/repos/myrepo");
+  mockEnsureRepo.mockImplementation(async () => TEST_REPO_PATH);
   mockCreateWorktree.mockReset();
   mockCreateWorktree.mockImplementation(async () => ({
-    worktreePath: "/worktrees/abc",
+    worktreePath: `${TEST_WORKTREES_DIR}/abc`,
     branchName: "hanni/feature-branch",
   }));
   mockRouteToRepository.mockReset();
   mockRouteToRepository.mockImplementation(() => null);
   mockRunModelSession.mockReset();
   mockRunModelSession.mockImplementation(async () => ({
-    sessionId: "sess-123",
+    sessionId: TEST_SESSION_ID,
     success: true,
     costUsd: 0.05,
     durationMs: 0,
@@ -172,11 +189,11 @@ describe("SessionManager", () => {
       mockExistsSync.mockImplementation(() => true);
       mockReadFileSync.mockImplementation(() =>
         JSON.stringify({
-          "YUN-1": {
+          [TEST_ISSUE_YUN_1]: {
             sessionId: "s1",
             status: "idle",
-            issueId: "issue-1",
-            issueIdentifier: "YUN-1",
+            issueId: TEST_ISSUE_ID,
+            issueIdentifier: TEST_ISSUE_YUN_1,
             createdAt: "2025-01-01T00:00:00Z",
           },
         }),
@@ -190,7 +207,7 @@ describe("SessionManager", () => {
       mockExistsSync.mockImplementation(() => true);
       mockReadFileSync.mockImplementation(() =>
         JSON.stringify({
-          "YUN-2": {
+          [TEST_ISSUE_YUN_2]: {
             sessionId: "s2",
             status: "running",
             issueId: "issue-2",
@@ -199,7 +216,7 @@ describe("SessionManager", () => {
         }),
       );
       const sm = new SessionManager(makeConfig(), mockRunModelSession);
-      const session = sm.getSessions().get("YUN-2");
+      const session = sm.getSessions().get(TEST_ISSUE_YUN_2);
       expect(session?.status).toBe("idle");
     });
 
@@ -217,7 +234,7 @@ describe("SessionManager", () => {
     it("returns false when no sessions exist", () => {
       resetMocks();
       const sm = new SessionManager(makeConfig(), mockRunModelSession);
-      expect(sm.hasSession("issue-1")).toBe(false);
+      expect(sm.hasSession(TEST_ISSUE_ID)).toBe(false);
     });
 
     it("returns true when issue is tracked", () => {
@@ -225,11 +242,11 @@ describe("SessionManager", () => {
       mockExistsSync.mockImplementation(() => true);
       mockReadFileSync.mockImplementation(() =>
         JSON.stringify({
-          "YUN-1": { sessionId: "s1", status: "idle", issueId: "issue-1", createdAt: "2025-01-01T00:00:00Z" },
+          [TEST_ISSUE_YUN_1]: { sessionId: "s1", status: "idle", issueId: TEST_ISSUE_ID, createdAt: "2025-01-01T00:00:00Z" },
         }),
       );
       const sm = new SessionManager(makeConfig(), mockRunModelSession);
-      expect(sm.hasSession("issue-1")).toBe(true);
+      expect(sm.hasSession(TEST_ISSUE_ID)).toBe(true);
     });
 
     it("returns false for unknown issueId", () => {
@@ -237,7 +254,7 @@ describe("SessionManager", () => {
       mockExistsSync.mockImplementation(() => true);
       mockReadFileSync.mockImplementation(() =>
         JSON.stringify({
-          "YUN-1": { sessionId: "s1", status: "idle", issueId: "issue-1", createdAt: "2025-01-01T00:00:00Z" },
+          [TEST_ISSUE_YUN_1]: { sessionId: "s1", status: "idle", issueId: TEST_ISSUE_ID, createdAt: "2025-01-01T00:00:00Z" },
         }),
       );
       const sm = new SessionManager(makeConfig(), mockRunModelSession);
@@ -276,7 +293,7 @@ describe("SessionManager", () => {
     it("returns a LinearClient for known workspace", () => {
       resetMocks();
       const sm = new SessionManager(makeConfig(), mockRunModelSession);
-      const client = sm.getLinearClient("ws1");
+      const client = sm.getLinearClient(TEST_WS_ID);
       expect(client).toBeDefined();
       expect(MockLinearClient).toHaveBeenCalled();
     });
@@ -290,8 +307,8 @@ describe("SessionManager", () => {
     it("uses apiKey for LinearClient", () => {
       resetMocks();
       const sm = new SessionManager(makeConfig(), mockRunModelSession);
-      sm.getLinearClient("ws1");
-      expect(MockLinearClient).toHaveBeenCalledWith("lin_key");
+      sm.getLinearClient(TEST_WS_ID);
+      expect(MockLinearClient).toHaveBeenCalledWith(TEST_LINEAR_API_KEY);
     });
   });
 
@@ -311,11 +328,11 @@ describe("SessionManager", () => {
       const sm = new SessionManager(config, mockRunModelSession);
 
       // Kick off 2 sessions (MAX_CONCURRENT = 2) without awaiting
-      sm.handleNewIssue(makeIssue({ id: "i1", identifier: "YUN-1" }), "ws1");
-      sm.handleNewIssue(makeIssue({ id: "i2", identifier: "YUN-2" }), "ws1");
+      sm.handleNewIssue(makeIssue({ id: "i1", identifier: TEST_ISSUE_YUN_1 }), TEST_WS_ID);
+      sm.handleNewIssue(makeIssue({ id: "i2", identifier: TEST_ISSUE_YUN_2 }), TEST_WS_ID);
 
       // 3rd should be rejected
-      const result = await sm.handleNewIssue(makeIssue({ id: "i3", identifier: "YUN-3" }), "ws1");
+      const result = await sm.handleNewIssue(makeIssue({ id: "i3", identifier: TEST_ISSUE_YUN_3 }), TEST_WS_ID);
       expect(result).toBeNull();
 
       resolveHang!();
@@ -326,7 +343,7 @@ describe("SessionManager", () => {
       resetMocks();
       mockRouteToRepository.mockImplementation(() => null);
       const sm = new SessionManager(makeConfig(), mockRunModelSession);
-      const result = await sm.handleNewIssue(makeIssue(), "ws1");
+      const result = await sm.handleNewIssue(makeIssue(), TEST_WS_ID);
       expect(result).toBeNull();
     });
 
@@ -336,7 +353,7 @@ describe("SessionManager", () => {
       const overrideRepo = { ...config.repositories[0], name: "override-repo" };
 
       const sm = new SessionManager(config, mockRunModelSession);
-      const result = await sm.handleNewIssue(makeIssue(), "ws1", undefined, overrideRepo);
+      const result = await sm.handleNewIssue(makeIssue(), TEST_WS_ID, undefined, overrideRepo);
 
       expect(result).not.toBeNull();
       expect(mockRouteToRepository).not.toHaveBeenCalled();
@@ -348,7 +365,7 @@ describe("SessionManager", () => {
       mockRouteToRepository.mockImplementation(() => config.repositories[0]);
       // Return actual __RESULT__ format so parseResultMetadata can extract fields
       mockRunModelSession.mockImplementation(async () => ({
-        sessionId: "sess-123",
+        sessionId: TEST_SESSION_ID,
         success: true,
         costUsd: 0.05,
         durationMs: 0,
@@ -356,7 +373,7 @@ describe("SessionManager", () => {
       }));
 
       const sm = new SessionManager(config, mockRunModelSession);
-      const result = await sm.handleNewIssue(makeIssue(), "ws1");
+      const result = await sm.handleNewIssue(makeIssue(), TEST_WS_ID);
 
       expect(result).not.toBeNull();
       expect(result?.costUsd).toBe(0.05);
@@ -369,7 +386,7 @@ describe("SessionManager", () => {
       mockRouteToRepository.mockImplementation(() => config.repositories[0]);
 
       const sm = new SessionManager(config, mockRunModelSession);
-      await sm.handleNewIssue(makeIssue(), "ws1");
+      await sm.handleNewIssue(makeIssue(), TEST_WS_ID);
 
       expect(mockWriteFileSync).toHaveBeenCalled();
     });
@@ -379,7 +396,7 @@ describe("SessionManager", () => {
     it("does nothing when no session found for issue", async () => {
       resetMocks();
       const sm = new SessionManager(makeConfig(), mockRunModelSession);
-      await sm.handleComment("unknown-issue", "body", "user-1", "ws1");
+      await sm.handleComment("unknown-issue", "body", "user-1", TEST_WS_ID);
       expect(mockRunModelSession).not.toHaveBeenCalled();
     });
 
@@ -388,12 +405,12 @@ describe("SessionManager", () => {
       mockExistsSync.mockImplementation(() => true);
       mockReadFileSync.mockImplementation(() =>
         JSON.stringify({
-          "YUN-1": {
+          [TEST_ISSUE_YUN_1]: {
             sessionId: "s1",
             status: "idle",
-            issueId: "issue-1",
-            issueIdentifier: "YUN-1",
-            worktreePath: "/worktrees/abc",
+            issueId: TEST_ISSUE_ID,
+            issueIdentifier: TEST_ISSUE_YUN_1,
+            worktreePath: `${TEST_WORKTREES_DIR}/abc`,
             createdAt: "2025-01-01T00:00:00Z",
           },
         }),
@@ -401,7 +418,7 @@ describe("SessionManager", () => {
 
       const sm = new SessionManager(makeConfig(), mockRunModelSession);
       // viewer-1 is the viewerId in ws1 config
-      await sm.handleComment("issue-1", "body", "viewer-1", "ws1");
+      await sm.handleComment(TEST_ISSUE_ID, "body", "viewer-1", TEST_WS_ID);
       expect(mockRunModelSession).not.toHaveBeenCalled();
     });
 
@@ -419,11 +436,11 @@ describe("SessionManager", () => {
 
       const sm = new SessionManager(config, mockRunModelSession);
       // Start handleNewIssue without awaiting — session status becomes "running"
-      sm.handleNewIssue(makeIssue({ id: "issue-1", identifier: "YUN-1" }), "ws1");
+      sm.handleNewIssue(makeIssue({ id: TEST_ISSUE_ID, identifier: TEST_ISSUE_YUN_1 }), TEST_WS_ID);
 
       // Now handleComment should see status "running" and bail out
       mockRunModelSession.mockClear();
-      await sm.handleComment("issue-1", "body", "other-user", "ws1");
+      await sm.handleComment(TEST_ISSUE_ID, "body", "other-user", TEST_WS_ID);
       expect(mockRunModelSession).not.toHaveBeenCalled();
 
       resolveHang();
@@ -432,26 +449,27 @@ describe("SessionManager", () => {
     it("resumes session with comment", async () => {
       resetMocks();
       mockExistsSync.mockImplementation(() => true);
+      const OLD_SESSION = "old-session";
       mockReadFileSync.mockImplementation(() =>
         JSON.stringify({
-          "YUN-1": {
-            sessionId: "old-session",
+          [TEST_ISSUE_YUN_1]: {
+            sessionId: OLD_SESSION,
             status: "idle",
-            issueId: "issue-1",
-            issueIdentifier: "YUN-1",
-            worktreePath: "/worktrees/abc",
+            issueId: TEST_ISSUE_ID,
+            issueIdentifier: TEST_ISSUE_YUN_1,
+            worktreePath: `${TEST_WORKTREES_DIR}/abc`,
             createdAt: "2025-01-01T00:00:00Z",
           },
         }),
       );
 
       const sm = new SessionManager(makeConfig(), mockRunModelSession);
-      await sm.handleComment("issue-1", "fix the bug", "other-user", "ws1");
+      await sm.handleComment(TEST_ISSUE_ID, "fix the bug", "other-user", TEST_WS_ID);
 
       expect(mockRunModelSession).toHaveBeenCalledTimes(1);
       const callArgs = mockRunModelSession.mock.calls[0][1];
       expect(callArgs.prompt).toBe("fix the bug");
-      expect(callArgs.resumeSessionId).toBe("old-session");
+      expect(callArgs.resumeSessionId).toBe(OLD_SESSION);
     });
 
     it("posts resultText as Linear comment", async () => {
@@ -459,12 +477,12 @@ describe("SessionManager", () => {
       mockExistsSync.mockImplementation(() => true);
       mockReadFileSync.mockImplementation(() =>
         JSON.stringify({
-          "YUN-1": {
+          [TEST_ISSUE_YUN_1]: {
             sessionId: "s1",
             status: "idle",
-            issueId: "issue-1",
-            issueIdentifier: "YUN-1",
-            worktreePath: "/worktrees/abc",
+            issueId: TEST_ISSUE_ID,
+            issueIdentifier: TEST_ISSUE_YUN_1,
+            worktreePath: `${TEST_WORKTREES_DIR}/abc`,
             createdAt: "2025-01-01T00:00:00Z",
           },
         }),
@@ -478,9 +496,9 @@ describe("SessionManager", () => {
       }));
 
       const sm = new SessionManager(makeConfig(), mockRunModelSession);
-      await sm.handleComment("issue-1", "tell me something", "other-user", "ws1");
+      await sm.handleComment(TEST_ISSUE_ID, "tell me something", "other-user", TEST_WS_ID);
 
-      expect(mockCreateComment).toHaveBeenCalledWith("issue-1", "Here is the answer");
+      expect(mockCreateComment).toHaveBeenCalledWith(TEST_ISSUE_ID, "Here is the answer");
     });
 
     it("falls back to fresh session when resume fails", async () => {
@@ -488,12 +506,12 @@ describe("SessionManager", () => {
       mockExistsSync.mockImplementation(() => true);
       mockReadFileSync.mockImplementation(() =>
         JSON.stringify({
-          "YUN-1": {
+          [TEST_ISSUE_YUN_1]: {
             sessionId: "dead-session",
             status: "idle",
-            issueId: "issue-1",
-            issueIdentifier: "YUN-1",
-            worktreePath: "/worktrees/abc",
+            issueId: TEST_ISSUE_ID,
+            issueIdentifier: TEST_ISSUE_YUN_1,
+            worktreePath: `${TEST_WORKTREES_DIR}/abc`,
             createdAt: "2025-01-01T00:00:00Z",
           },
         }),
@@ -507,7 +525,7 @@ describe("SessionManager", () => {
       });
 
       const sm = new SessionManager(makeConfig(), mockRunModelSession);
-      await sm.handleComment("issue-1", "hello", "other-user", "ws1");
+      await sm.handleComment(TEST_ISSUE_ID, "hello", "other-user", TEST_WS_ID);
 
       expect(callCount).toBe(2);
       // Second call should NOT have resumeSessionId
@@ -521,29 +539,29 @@ describe("SessionManager", () => {
       const config = makeConfig();
       mockReadFileSync.mockImplementation(() =>
         JSON.stringify({
-          "YUN-1": {
+          [TEST_ISSUE_YUN_1]: {
             sessionId: "s1",
             status: "idle",
-            issueId: "issue-1",
-            issueIdentifier: "YUN-1",
-            worktreePath: "/worktrees/abc",
-            repo: "myrepo",
+            issueId: TEST_ISSUE_ID,
+            issueIdentifier: TEST_ISSUE_YUN_1,
+            worktreePath: `${TEST_WORKTREES_DIR}/abc`,
+            repo: TEST_REPO_NAME,
             branch: "hanni/feature",
             createdAt: "2025-01-01T00:00:00Z",
           },
         }),
       );
       mockPushAndCreatePR.mockImplementation(async () => ({
-        prUrl: "https://github.com/owner/myrepo/pull/42",
+        prUrl: `https://github.com/${TEST_REPO_GITHUB}/pull/42`,
       }));
 
       const sm = new SessionManager(config, mockRunModelSession);
-      await sm.handleComment("issue-1", "push please", "other-user", "ws1");
+      await sm.handleComment(TEST_ISSUE_ID, "push please", "other-user", TEST_WS_ID);
 
       // Should have created two comments: result + PR URL
       expect(mockCreateComment).toHaveBeenCalledTimes(2);
       const prComment = mockCreateComment.mock.calls[1][1];
-      expect(prComment).toContain("https://github.com/owner/myrepo/pull/42");
+      expect(prComment).toContain(`https://github.com/${TEST_REPO_GITHUB}/pull/42`);
     });
   });
 
@@ -599,7 +617,7 @@ describe("SessionManager", () => {
     it("runs session without repo (scratch directory)", async () => {
       resetMocks();
       mockRunModelSession.mockImplementation(async () => ({
-        sessionId: "sess-123",
+        sessionId: TEST_SESSION_ID,
         success: true,
         costUsd: 0.01,
         durationMs: 0,

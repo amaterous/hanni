@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, spyOn, mock } from "bun:test";
 import { LinearClient } from "./client";
+import { TEST_LINEAR_API_KEY } from "../__tests__/test-constants";
 
-const TOKEN = "lin_api_test";
+const TOKEN = TEST_LINEAR_API_KEY;
 
 function makeResponse(data: unknown, errors?: { message: string }[]) {
   return new Response(JSON.stringify({ data, errors }), {

@@ -2,6 +2,7 @@ import { query, type SDKResultSuccess } from "@anthropic-ai/claude-agent-sdk";
 import { slackifyMarkdown } from "slackify-markdown";
 import type { HanniConfig } from "../types";
 import { createLogger } from "../utils/logger";
+import { SLACK_URL_INFER_MAX_TURNS, LINEAR_MCP_PACKAGE } from "../constants";
 
 const log = createLogger("chat");
 
@@ -95,11 +96,11 @@ ${message}`;
         model: "sonnet",
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
-        maxTurns: 10,
+        maxTurns: SLACK_URL_INFER_MAX_TURNS,
         mcpServers: {
           linear: {
             command: "npx",
-            args: ["-y", "@tacticlaunch/mcp-linear"],
+            args: ["-y", LINEAR_MCP_PACKAGE],
             env: {
               LINEAR_API_TOKEN: linearApiKey ?? "",
             },

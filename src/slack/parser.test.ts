@@ -1,27 +1,36 @@
 import { describe, it, expect } from "bun:test";
 import { parseSlackMention } from "./parser";
 import type { RepositoryConfig } from "../types";
+import {
+  TEST_WS_ID,
+  TEST_BASE_BRANCH,
+  TEST_REPO_IQ_TEST,
+  TEST_REPO_GITHUB_IQ_TEST,
+  TEST_REPO_PICOLI,
+  TEST_REPO_THREAD_SPARK,
+  TEST_ISSUE_SKY_12,
+} from "../__tests__/test-constants";
 
 const repos: RepositoryConfig[] = [
   {
-    name: "iq-test",
-    github: "yuppppppppppqi/iq-test",
-    baseBranch: "main",
-    linearWorkspaceId: "ws1",
+    name: TEST_REPO_IQ_TEST,
+    github: TEST_REPO_GITHUB_IQ_TEST,
+    baseBranch: TEST_BASE_BRANCH,
+    linearWorkspaceId: TEST_WS_ID,
     projectKeys: ["YUN"],
   },
   {
-    name: "picoli.site",
+    name: TEST_REPO_PICOLI,
     github: "yuppppppppppqi/picoli.site",
-    baseBranch: "main",
-    linearWorkspaceId: "ws1",
+    baseBranch: TEST_BASE_BRANCH,
+    linearWorkspaceId: TEST_WS_ID,
     projectKeys: ["YUN"],
   },
   {
-    name: "thread-spark",
+    name: TEST_REPO_THREAD_SPARK,
     github: "yuppppppppppqi/thread-spark",
-    baseBranch: "main",
-    linearWorkspaceId: "ws1",
+    baseBranch: TEST_BASE_BRANCH,
+    linearWorkspaceId: TEST_WS_ID,
     projectKeys: ["YUN"],
   },
 ];
@@ -53,9 +62,9 @@ describe("parseSlackMention", () => {
   });
 
   it("parses resume command with no extra text", () => {
-    const result = parseSlackMention("<@U123456> SKY-12", repos);
+    const result = parseSlackMention(`<@U123456> ${TEST_ISSUE_SKY_12}`, repos);
     expect(result.type).toBe("resume");
-    expect(result.issueIdentifier).toBe("SKY-12");
+    expect(result.issueIdentifier).toBe(TEST_ISSUE_SKY_12);
     expect(result.taskDescription).toBeUndefined();
   });
 
@@ -66,7 +75,7 @@ describe("parseSlackMention", () => {
     );
     expect(result).toEqual({
       type: "task",
-      repoName: "iq-test",
+      repoName: TEST_REPO_IQ_TEST,
       taskDescription: "トップページ修正して",
     });
   });
@@ -78,7 +87,7 @@ describe("parseSlackMention", () => {
     );
     expect(result).toEqual({
       type: "task",
-      repoName: "iq-test",
+      repoName: TEST_REPO_IQ_TEST,
       taskDescription: "トップページ修正して",
     });
   });
@@ -92,7 +101,7 @@ describe("parseSlackMention", () => {
     );
     expect(result).toEqual({
       type: "task",
-      repoName: "picoli.site",
+      repoName: TEST_REPO_PICOLI,
       taskDescription: "のバグ直して",
     });
   });
@@ -104,7 +113,7 @@ describe("parseSlackMention", () => {
     );
     expect(result).toEqual({
       type: "task",
-      repoName: "picoli.site",
+      repoName: TEST_REPO_PICOLI,
       taskDescription: "バグ直して",
     });
   });

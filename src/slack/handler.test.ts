@@ -2,15 +2,23 @@ import { describe, test, expect, beforeEach, afterEach, mock, spyOn } from "bun:
 import { createSlackHandler } from "./handler";
 import { createHmac } from "crypto";
 import type { HanniConfig } from "../types";
+import {
+  TEST_SLACK_TEAM_ID,
+  TEST_SLACK_SIGNING_SECRET,
+  TEST_SLACK_BOT_TOKEN,
+  TEST_SERVER_PORT,
+  TEST_WEBHOOK_PATH,
+  TEST_SLACK_BOT_USER_ID,
+} from "../__tests__/test-constants";
 
-const TEAM_ID = "T123";
-const SIGNING_SECRET = "test-signing-secret";
-const BOT_TOKEN = "xoxb-test-token";
+const TEAM_ID = TEST_SLACK_TEAM_ID;
+const SIGNING_SECRET = TEST_SLACK_SIGNING_SECRET;
+const BOT_TOKEN = TEST_SLACK_BOT_TOKEN;
 
 function makeConfig(): HanniConfig {
   return {
     agent: { name: "Hanni" },
-    server: { port: 3000, webhookPath: "/webhook" },
+    server: { port: TEST_SERVER_PORT, webhookPath: TEST_WEBHOOK_PATH },
     linear: { webhookSecret: "lin-secret", workspaces: {} },
     slack: {
       workspaces: {
@@ -150,7 +158,7 @@ describe("createSlackHandler", () => {
     const body = JSON.stringify({
       type: "event_callback",
       team_id: TEAM_ID,
-      event: { type: "app_mention", text: "<@U_BOT> hello", user: "U_TEST", channel: "C1", ts: "1234", thread_ts: "1234" },
+      event: { type: "app_mention", text: `<@${TEST_SLACK_BOT_USER_ID}> hello`, user: "U_TEST", channel: "C1", ts: "1234", thread_ts: "1234" },
     });
     const req = makeRequest(body);
 

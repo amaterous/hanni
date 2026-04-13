@@ -1,13 +1,14 @@
 import { describe, expect, test, mock, beforeEach } from "bun:test";
 import { createWebhookHandler } from "./handler";
 import type { HanniConfig } from "../types";
+import { TEST_WS_ID_KNOWN } from "../__tests__/test-constants";
 
 // Minimal config with one known workspace
 const makeConfig = (viewerId = "viewer-1"): HanniConfig =>
   ({
     linear: {
       workspaces: {
-        "ws-known": {
+        [TEST_WS_ID_KNOWN]: {
           apiKey: "key",
           viewerId,
         },
@@ -43,7 +44,7 @@ describe("createWebhookHandler", () => {
       const handler = createWebhookHandler(sm as any, makeConfig());
 
       await handler({
-        organizationId: "ws-known",
+        organizationId: TEST_WS_ID_KNOWN,
         type: "AgentSessionEvent",
         action: "created",
         agentSession: {
@@ -62,7 +63,7 @@ describe("createWebhookHandler", () => {
       const handler = createWebhookHandler(sm as any, makeConfig());
 
       await handler({
-        organizationId: "ws-known",
+        organizationId: TEST_WS_ID_KNOWN,
         type: "AgentSessionEvent",
         action: "created",
         agentSession: {
@@ -84,7 +85,7 @@ describe("createWebhookHandler", () => {
       const handler = createWebhookHandler(sm as any, makeConfig());
 
       await handler({
-        organizationId: "ws-known",
+        organizationId: TEST_WS_ID_KNOWN,
         type: "AgentSessionEvent",
         action: "created",
         agentSession: {
@@ -105,7 +106,7 @@ describe("createWebhookHandler", () => {
       const handler = createWebhookHandler(sm as any, makeConfig());
 
       await handler({
-        organizationId: "ws-known",
+        organizationId: TEST_WS_ID_KNOWN,
         type: "AgentSessionEvent",
         action: "prompted",
         agentSession: {
@@ -123,7 +124,7 @@ describe("createWebhookHandler", () => {
       const handler = createWebhookHandler(sm as any, makeConfig());
 
       await handler({
-        organizationId: "ws-known",
+        organizationId: TEST_WS_ID_KNOWN,
         type: "AgentSessionEvent",
         action: "prompted",
         agentSession: {
@@ -146,7 +147,7 @@ describe("createWebhookHandler", () => {
       const handler = createWebhookHandler(sm as any, makeConfig("viewer-1"));
 
       await handler({
-        organizationId: "ws-known",
+        organizationId: TEST_WS_ID_KNOWN,
         type: "Issue",
         action: "create",
         data: { id: "issue-3", assigneeId: "someone-else" },
@@ -160,7 +161,7 @@ describe("createWebhookHandler", () => {
       const handler = createWebhookHandler(sm as any, makeConfig("viewer-1"));
 
       await handler({
-        organizationId: "ws-known",
+        organizationId: TEST_WS_ID_KNOWN,
         type: "Issue",
         action: "create",
         data: { id: "issue-4", assigneeId: "viewer-1" },
@@ -174,7 +175,7 @@ describe("createWebhookHandler", () => {
       const handler = createWebhookHandler(sm as any, makeConfig("viewer-1"));
 
       await handler({
-        organizationId: "ws-known",
+        organizationId: TEST_WS_ID_KNOWN,
         type: "Issue",
         action: "update",
         data: { id: "issue-5", assignee: { id: "viewer-1" } },
@@ -190,7 +191,7 @@ describe("createWebhookHandler", () => {
       const handler = createWebhookHandler(sm as any, makeConfig());
 
       await handler({
-        organizationId: "ws-known",
+        organizationId: TEST_WS_ID_KNOWN,
         type: "Comment",
         action: "create",
         data: { issueId: "issue-6", body: "Nice work!", userId: "user-1" },
@@ -207,7 +208,7 @@ describe("createWebhookHandler", () => {
       const handler = createWebhookHandler(sm as any, makeConfig());
 
       await handler({
-        organizationId: "ws-known",
+        organizationId: TEST_WS_ID_KNOWN,
         type: "Comment",
         action: "create",
         data: { issueId: "issue-7" },

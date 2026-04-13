@@ -1,7 +1,17 @@
 import { readFileSync, existsSync, writeFileSync } from "fs";
 import type { HanniConfig } from "./types";
+import {
+  DEFAULT_CLAUDE_MODEL,
+  DEFAULT_CLAUDE_FALLBACK_MODEL,
+  DEFAULT_PORT,
+  DEFAULT_WEBHOOK_PATH,
+  DEFAULT_WORKSPACE_NAME,
+  DEFAULT_PATHS,
+  DEFAULT_CONFIG_FILE,
+  DEFAULT_TOKENS_FILE,
+} from "./constants";
 
-const DEFAULT_TOKENS_PATH = "./tokens.json";
+const DEFAULT_TOKENS_PATH = DEFAULT_TOKENS_FILE;
 
 /**
  * Build config from environment variables (for Railway / Fly.io deployment).
@@ -53,7 +63,7 @@ function buildConfigFromEnv(): HanniConfig | null {
     throw new Error(`Missing required env vars: ${missing.join(", ")}`);
   }
 
-  const port = parseInt(process.env.HANNI_PORT ?? "3460", 10);
+  const port = parseInt(process.env.HANNI_PORT ?? String(DEFAULT_PORT), 10);
 
   // Parse repositories from env (JSON array) or use empty
   let repositories: HanniConfig["repositories"] = [];
@@ -68,13 +78,13 @@ function buildConfigFromEnv(): HanniConfig | null {
   return {
     agent: { name: "hanni" },
     provider: "claude",
-    server: { port, webhookPath: "/webhook" },
+    server: { port, webhookPath: DEFAULT_WEBHOOK_PATH },
     linear: {
       webhookSecret: linearWebhookSecret!,
       hookdeckRelayToken: process.env.HOOKDECK_RELAY_TOKEN,
       workspaces: {
         [linearWorkspaceId!]: {
-          name: process.env.LINEAR_WORKSPACE_NAME ?? "workspace",
+          name: process.env.LINEAR_WORKSPACE_NAME ?? DEFAULT_WORKSPACE_NAME,
           apiKey: linearApiToken!,
           inReviewStateId: linearInReviewStateId!,
         },
@@ -83,7 +93,7 @@ function buildConfigFromEnv(): HanniConfig | null {
     slack: {
       workspaces: {
         [slackTeamId!]: {
-          name: process.env.SLACK_WORKSPACE_NAME ?? "workspace",
+          name: process.env.SLACK_WORKSPACE_NAME ?? DEFAULT_WORKSPACE_NAME,
           botToken: slackBotToken!,
           signingSecret: slackSigningSecret!,
           defaultLinearWorkspaceId: process.env.SLACK_LINEAR_WORKSPACE_ID ?? linearWorkspaceId!,
@@ -93,14 +103,14 @@ function buildConfigFromEnv(): HanniConfig | null {
     },
     repositories,
     claude: {
-      model: process.env.CLAUDE_MODEL ?? "claude-sonnet-4-20250514",
-      fallbackModel: process.env.CLAUDE_FALLBACK_MODEL ?? "claude-haiku-4-5-20251001",
+      model: process.env.CLAUDE_MODEL ?? DEFAULT_CLAUDE_MODEL,
+      fallbackModel: process.env.CLAUDE_FALLBACK_MODEL ?? DEFAULT_CLAUDE_FALLBACK_MODEL,
     },
-    paths: { repos: "./repos", worktrees: "./worktrees", logs: "./logs" },
+    paths: { ...DEFAULT_PATHS },
   };
 }
 
-export function loadConfig(configPath = "./config.json", tokensPath = DEFAULT_TOKENS_PATH): HanniConfig {
+export function loadConfig(configPath = DEFAULT_CONFIG_FILE, tokensPath = DEFAULT_TOKENS_PATH): HanniConfig {
   // Try env vars first (Railway / Fly.io)
   const envConfig = buildConfigFromEnv();
   if (envConfig) return envConfig;
@@ -151,9 +161,9 @@ export function loadConfig(configPath = "./config.json", tokensPath = DEFAULT_TO
   if (!config.claude?.model) throw new Error("config: claude.model is required");
 
   config.provider ??= "claude";
-  config.server.webhookPath ??= "/webhook";
+  config.server.webhookPath ??= DEFAULT_WEBHOOK_PATH;
   config.agent ??= { name: "hanni" };
-  config.paths ??= { repos: "./repos", worktrees: "./worktrees", logs: "./logs" };
+  config.paths ??= { ...DEFAULT_PATHS };
 
   return config;
 }

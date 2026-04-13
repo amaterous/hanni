@@ -15,16 +15,29 @@ mock.module("fs", () => ({
 
 import { handleAdminAPI } from "./api";
 import type { HanniConfig, SessionInfo } from "../types";
+import {
+  TEST_WS_ID,
+  TEST_LINEAR_API_KEY,
+  TEST_MODEL_SONNET,
+  TEST_MODEL_HAIKU,
+  TEST_CONFIG_PATH,
+  TEST_REPOS_DIR,
+  TEST_WORKTREES_DIR,
+  TEST_LOGS_DIR,
+  TEST_SERVER_PORT,
+  TEST_WEBHOOK_PATH,
+  TEST_WEBHOOK_SECRET,
+  TEST_ISSUE_YUN_1,
+  TEST_ISSUE_YUN_2,
+  TEST_SESSION_ID,
+  TEST_SLACK_THREAD_KEY,
+} from "../__tests__/test-constants";
 
-// ── Test constants ─────────────────────────────────────────────────────────
-const WS_ID = "ws1";
+// ── Local aliases ─────────────────────────────────────────────────────────
+const CONFIG_PATH = TEST_CONFIG_PATH;
+const WS_ID = TEST_WS_ID;
 const WS_NAME = "YunWorkspace";
-const LINEAR_API_KEY = "lin_api_test";
 const IN_REVIEW_STATE_ID = "state-1";
-const CLAUDE_MODEL = "claude-sonnet-4-6";
-const CLAUDE_FALLBACK_MODEL = "claude-haiku-4-5-20251001";
-const CONFIG_PATH = "/cfg.json";
-const PATHS = { repos: "/repos", worktrees: "/worktrees", logs: "/logs" } as const;
 // ──────────────────────────────────────────────────────────────────────────
 
 // Helper: create a minimal HanniConfig
@@ -32,20 +45,20 @@ function makeConfig(overrides: Partial<HanniConfig> = {}): HanniConfig {
   return {
     provider: "claude",
     agent: { name: "Hanni" },
-    server: { port: 3000, webhookPath: "/webhook" },
+    server: { port: TEST_SERVER_PORT, webhookPath: TEST_WEBHOOK_PATH },
     linear: {
-      webhookSecret: "secret",
+      webhookSecret: TEST_WEBHOOK_SECRET,
       workspaces: {
-        [WS_ID]: {
+        [TEST_WS_ID]: {
           name: WS_NAME,
-          apiKey: LINEAR_API_KEY,
+          apiKey: TEST_LINEAR_API_KEY,
           inReviewStateId: IN_REVIEW_STATE_ID,
         },
       },
     },
     repositories: [],
-    claude: { model: CLAUDE_MODEL, fallbackModel: CLAUDE_FALLBACK_MODEL },
-    paths: PATHS,
+    claude: { model: TEST_MODEL_SONNET, fallbackModel: TEST_MODEL_HAIKU },
+    paths: { repos: TEST_REPOS_DIR, worktrees: TEST_WORKTREES_DIR, logs: TEST_LOGS_DIR },
     ...overrides,
   };
 }
@@ -140,19 +153,20 @@ describe("GET /api/sessions", () => {
   test("returns sessions list", async () => {
     const config = makeConfig();
     const sessions = new Map<string, SessionInfo>();
-    sessions.set("YUN-1:thread-1", {
-      sessionId: "session-1",
-      issueIdentifier: "YUN-1",
+    const sessionKey = `${TEST_ISSUE_YUN_1}:thread-1`;
+    sessions.set(sessionKey, {
+      sessionId: TEST_SESSION_ID,
+      issueIdentifier: TEST_ISSUE_YUN_1,
       status: "idle",
       createdAt: new Date().toISOString(),
-      slackThreadKey: "C123:thread-1",
+      slackThreadKey: TEST_SLACK_THREAD_KEY,
     });
     const req = makeReq("GET", "/api/sessions");
     const url = new URL("http://localhost/api/sessions");
     const res = await handleAdminAPI(req, url, config, CONFIG_PATH, new Map(sessions));
     const body = await res!.json() as { key: string }[];
     expect(body).toHaveLength(1);
-    expect(body[0]!.key).toBe("YUN-1:thread-1");
+    expect(body[0]!.key).toBe(sessionKey);
   });
 });
 
@@ -299,7 +313,7 @@ describe("GET /api/logs", () => {
     const config = makeConfig();
     mockExistsSync.mockImplementation((_p: unknown) => true);
     mockReaddirSync.mockImplementation((p: unknown) => {
-      if (p === "/logs") return ["YUN-1", "OTHER", "YUN-2"] as unknown as string[];
+      if (p === TEST_LOGS_DIR) return [TEST_ISSUE_YUN_1, "OTHER", TEST_ISSUE_YUN_2] as unknown as string[];
       // ticket dirs
       return ["session-2024-01-01.json"] as unknown as string[];
     });
@@ -311,6 +325,6 @@ describe("GET /api/logs", () => {
     const res = (await handleAdminAPI(req, url, config, CONFIG_PATH, new Map()))!;
     const body = await res.json() as { ticket: string }[];
     // "OTHER" is filtered out — only ticket-format entries (e.g. YUN-*) are returned
-    expect(body.map((b) => b.ticket).sort()).toEqual(["YUN-1", "YUN-2"]);
+    expect(body.map((b) => b.ticket).sort()).toEqual([TEST_ISSUE_YUN_1, TEST_ISSUE_YUN_2].sort());
   });
 });

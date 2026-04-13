@@ -2,6 +2,7 @@ import { describe, test, expect } from "bun:test";
 import { routeToRepository } from "./router";
 import type { LinearIssue } from "../linear/types";
 import type { RepositoryConfig } from "../types";
+import { TEST_WS_ID_ALT, TEST_BASE_BRANCH } from "../__tests__/test-constants";
 
 function makeIssue(overrides: Partial<LinearIssue> = {}): LinearIssue {
   return {
@@ -22,14 +23,14 @@ function makeRepo(overrides: Partial<RepositoryConfig> = {}): RepositoryConfig {
   return {
     name: "my-repo",
     github: "org/my-repo",
-    baseBranch: "main",
-    linearWorkspaceId: "ws-1",
+    baseBranch: TEST_BASE_BRANCH,
+    linearWorkspaceId: TEST_WS_ID_ALT,
     projectKeys: [],
     ...overrides,
   };
 }
 
-const WS = "ws-1";
+const WS = TEST_WS_ID_ALT;
 
 describe("routeToRepository", () => {
   describe("project match (step 1)", () => {

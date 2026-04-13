@@ -16,14 +16,20 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (...args: any[]) => mockQueryImpl(),
 }));
 
+import {
+  TEST_MODEL_OPUS,
+  TEST_MODEL_SONNET,
+  TEST_LOGS_DIR,
+} from "../__tests__/test-constants";
+
 const { runClaudeSession } = await import("./claude-runner");
 
 const defaultParams = {
   prompt: "test prompt",
   cwd: "/tmp/test",
-  model: "claude-opus-4-6",
-  fallbackModel: "claude-sonnet-4-6",
-  logsDir: "/tmp/logs",
+  model: TEST_MODEL_OPUS,
+  fallbackModel: TEST_MODEL_SONNET,
+  logsDir: TEST_LOGS_DIR,
   issueIdentifier: "TEST-1",
 };
 

@@ -1,5 +1,11 @@
 import { describe, it, expect, spyOn, beforeEach } from "bun:test";
 import { pushAndCreatePR } from "./pr-creator";
+import {
+  TEST_REPO_GITHUB,
+  TEST_ISSUE_YUN_1,
+  TEST_BASE_BRANCH,
+  TEST_SLACK_CHANNEL_ID,
+} from "../__tests__/test-constants";
 
 // Helper to create a mock Bun.spawn result
 function makeSpawnResult(stdout: string, stderr: string, code: number) {
@@ -16,12 +22,12 @@ const spawnSpy = spyOn(Bun, "spawn").mockImplementation(
 );
 
 const baseParams = {
-  worktreePath: "/repos/myrepo/worktrees/YUN-1",
-  branchName: "hanni/YUN-1",
-  issueIdentifier: "YUN-1",
+  worktreePath: `/repos/myrepo/worktrees/${TEST_ISSUE_YUN_1}`,
+  branchName: `hanni/${TEST_ISSUE_YUN_1}`,
+  issueIdentifier: TEST_ISSUE_YUN_1,
   issueTitle: "Test issue",
-  baseBranch: "main",
-  github: "owner/myrepo",
+  baseBranch: TEST_BASE_BRANCH,
+  github: TEST_REPO_GITHUB,
 };
 
 function resetSpy(responses: Array<{ stdout: string; stderr: string; code: number }> = []) {
@@ -63,7 +69,7 @@ describe("pushAndCreatePR - no commits to push", () => {
     const logCall = spawnSpy.mock.calls[0];
     expect(logCall[0]).toContain("git");
     expect(logCall[0]).toContain("log");
-    expect(logCall[0]).toContain("origin/main..HEAD");
+    expect(logCall[0]).toContain(`origin/${TEST_BASE_BRANCH}..HEAD`);
     expect(logCall[1]).toMatchObject({ cwd: baseParams.worktreePath });
   });
 });
@@ -86,7 +92,7 @@ describe("pushAndCreatePR - PR already exists", () => {
   beforeEach(() => resetSpy());
 
   it("returns existing PR url without creating a new one", async () => {
-    const existingUrl = "https://github.com/owner/myrepo/pull/42";
+    const existingUrl = `https://github.com/${TEST_REPO_GITHUB}/pull/42`;
     resetSpy([
       { stdout: "abc123 some commit", stderr: "", code: 0 }, // git log
       { stdout: "", stderr: "", code: 0 }, // git push
@@ -98,7 +104,7 @@ describe("pushAndCreatePR - PR already exists", () => {
   });
 
   it("does not call gh pr create when PR already exists", async () => {
-    const existingUrl = "https://github.com/owner/myrepo/pull/42";
+    const existingUrl = `https://github.com/${TEST_REPO_GITHUB}/pull/42`;
     resetSpy([
       { stdout: "abc123 some commit", stderr: "", code: 0 },
       { stdout: "", stderr: "", code: 0 },
@@ -117,7 +123,7 @@ describe("pushAndCreatePR - PR already exists", () => {
 describe("pushAndCreatePR - create new PR", () => {
   beforeEach(() => resetSpy());
 
-  const newPrUrl = "https://github.com/owner/myrepo/pull/99";
+  const newPrUrl = `https://github.com/${TEST_REPO_GITHUB}/pull/99`;
 
   it("creates draft PR and returns its url", async () => {
     resetSpy([
@@ -164,7 +170,7 @@ describe("pushAndCreatePR - create new PR", () => {
     expect(createCall).toBeDefined();
     const cmd = createCall![0] as string[];
     const titleIdx = cmd.indexOf("--title");
-    expect(cmd[titleIdx + 1]).toBe("[YUN-1] Test issue");
+    expect(cmd[titleIdx + 1]).toBe(`[${TEST_ISSUE_YUN_1}] Test issue`);
   });
 
   it("includes slackThread comment in body when provided", async () => {
@@ -177,7 +183,7 @@ describe("pushAndCreatePR - create new PR", () => {
 
     await pushAndCreatePR({
       ...baseParams,
-      slackThread: { channel: "C123", threadTs: "1234.567" },
+      slackThread: { channel: TEST_SLACK_CHANNEL_ID, threadTs: "1234.567" },
     });
 
     const createCall = spawnSpy.mock.calls.find(
@@ -186,7 +192,7 @@ describe("pushAndCreatePR - create new PR", () => {
     expect(createCall).toBeDefined();
     const cmd = createCall![0] as string[];
     const bodyIdx = cmd.indexOf("--body");
-    expect(cmd[bodyIdx + 1]).toContain("C123/1234.567");
+    expect(cmd[bodyIdx + 1]).toContain(`${TEST_SLACK_CHANNEL_ID}/1234.567`);
   });
 
   it("returns prUrl: null when gh pr create fails", async () => {

@@ -11,7 +11,7 @@ import { pushAndCreatePR } from "../post-session/pr-creator";
 import { updateTicketAfterSession } from "../post-session/ticket-updater";
 import { buildOrchestrationPrompt, parseResultMetadata } from "./orchestration-prompt";
 import { createLogger } from "../utils/logger";
-import { DEFAULT_MAX_CONCURRENT_SESSIONS } from "../constants";
+import { DEFAULT_MAX_CONCURRENT_SESSIONS, SESSION_MAX_TURNS, LINEAR_MCP_PACKAGE } from "../constants";
 
 const log = createLogger("session");
 
@@ -21,7 +21,7 @@ function buildLinearMcpServers(apiKey: string): McpServers {
   return {
     linear: {
       command: "npx",
-      args: ["-y", "@tacticlaunch/mcp-linear"],
+      args: ["-y", LINEAR_MCP_PACKAGE],
       env: { LINEAR_API_TOKEN: apiKey },
     },
   };
@@ -321,7 +321,7 @@ export class SessionManager {
         fallbackModel: this.config.claude.fallbackModel,
         logsDir: this.config.paths.logs,
         issueIdentifier: sessionKey.replace(/[:/]/g, "-"),
-        maxTurns: 100,
+        maxTurns: SESSION_MAX_TURNS,
         mcpServers,
       });
 

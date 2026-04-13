@@ -11,6 +11,14 @@ mock.module("fs", () => ({
 
 import { ensureRepo } from "./repo-manager";
 import type { RepositoryConfig } from "../types";
+import {
+  TEST_WS_ID,
+  TEST_REPOS_DIR,
+  TEST_REPO_NAME,
+  TEST_REPO_GITHUB,
+  TEST_REPO_PATH,
+  TEST_BASE_BRANCH,
+} from "../__tests__/test-constants";
 
 // Helper to create a mock Bun.spawn result
 function makeSpawnResult(stdout: string, stderr: string, code: number) {
@@ -27,18 +35,18 @@ const spawnSpy = spyOn(Bun, "spawn").mockImplementation(
 );
 
 const localRepo: RepositoryConfig = {
-  name: "myrepo",
+  name: TEST_REPO_NAME,
   github: "",
-  baseBranch: "main",
-  linearWorkspaceId: "ws1",
+  baseBranch: TEST_BASE_BRANCH,
+  linearWorkspaceId: TEST_WS_ID,
   projectKeys: [],
 };
 
 const githubRepo: RepositoryConfig = {
-  name: "myrepo",
-  github: "owner/myrepo",
-  baseBranch: "main",
-  linearWorkspaceId: "ws1",
+  name: TEST_REPO_NAME,
+  github: TEST_REPO_GITHUB,
+  baseBranch: TEST_BASE_BRANCH,
+  linearWorkspaceId: TEST_WS_ID,
   projectKeys: [],
 };
 
@@ -55,19 +63,19 @@ describe("ensureRepo - directory creation", () => {
   it("creates reposDir when it does not exist", async () => {
     mockExistsSync.mockImplementation((_p: string) => false);
 
-    await ensureRepo(localRepo, "/repos");
+    await ensureRepo(localRepo, TEST_REPOS_DIR);
 
-    expect(mockMkdirSync).toHaveBeenCalledWith("/repos", { recursive: true });
+    expect(mockMkdirSync).toHaveBeenCalledWith(TEST_REPOS_DIR, { recursive: true });
   });
 
   it("does not create reposDir when it already exists", async () => {
     mockExistsSync.mockImplementation((p: string) => {
-      if (p === "/repos") return true;
-      if (p === "/repos/myrepo") return true;
+      if (p === TEST_REPOS_DIR) return true;
+      if (p === TEST_REPO_PATH) return true;
       return false;
     });
 
-    await ensureRepo(githubRepo, "/repos");
+    await ensureRepo(githubRepo, TEST_REPOS_DIR);
 
     expect(mockMkdirSync).not.toHaveBeenCalled();
   });
@@ -75,9 +83,9 @@ describe("ensureRepo - directory creation", () => {
   it("returns the correct repoPath", async () => {
     mockExistsSync.mockImplementation((_p: string) => false);
 
-    const result = await ensureRepo(localRepo, "/repos");
+    const result = await ensureRepo(localRepo, TEST_REPOS_DIR);
 
-    expect(result).toBe("/repos/myrepo");
+    expect(result).toBe(TEST_REPO_PATH);
   });
 });
 
@@ -87,42 +95,42 @@ describe("ensureRepo - local-only repo (no github)", () => {
   it("creates directory and runs git init when repoPath does not exist", async () => {
     mockExistsSync.mockImplementation((_p: string) => false);
 
-    await ensureRepo(localRepo, "/repos");
+    await ensureRepo(localRepo, TEST_REPOS_DIR);
 
     const initCall = spawnSpy.mock.calls.find(([cmd]) => cmd[0] === "git" && cmd[1] === "init");
     expect(initCall).toBeDefined();
-    expect(initCall![1]).toMatchObject({ cwd: "/repos/myrepo" });
+    expect(initCall![1]).toMatchObject({ cwd: TEST_REPO_PATH });
   });
 
   it("runs git commit with --allow-empty after init", async () => {
     mockExistsSync.mockImplementation((_p: string) => false);
 
-    await ensureRepo(localRepo, "/repos");
+    await ensureRepo(localRepo, TEST_REPOS_DIR);
 
     const commitCall = spawnSpy.mock.calls.find(
       ([cmd]) => cmd[0] === "git" && cmd[1] === "commit",
     );
     expect(commitCall).toBeDefined();
     expect(commitCall![0]).toContain("--allow-empty");
-    expect(commitCall![1]).toMatchObject({ cwd: "/repos/myrepo" });
+    expect(commitCall![1]).toMatchObject({ cwd: TEST_REPO_PATH });
   });
 
   it("creates repoPath directory for local repo", async () => {
     mockExistsSync.mockImplementation((_p: string) => false);
 
-    await ensureRepo(localRepo, "/repos");
+    await ensureRepo(localRepo, TEST_REPOS_DIR);
 
-    expect(mockMkdirSync).toHaveBeenCalledWith("/repos/myrepo", { recursive: true });
+    expect(mockMkdirSync).toHaveBeenCalledWith(TEST_REPO_PATH, { recursive: true });
   });
 
   it("does nothing when repoPath already exists and no github", async () => {
     mockExistsSync.mockImplementation((p: string) => {
-      if (p === "/repos") return true;
-      if (p === "/repos/myrepo") return true;
+      if (p === TEST_REPOS_DIR) return true;
+      if (p === TEST_REPO_PATH) return true;
       return false;
     });
 
-    await ensureRepo(localRepo, "/repos");
+    await ensureRepo(localRepo, TEST_REPOS_DIR);
 
     expect(spawnSpy.mock.calls).toHaveLength(0);
   });
@@ -134,41 +142,41 @@ describe("ensureRepo - github repo", () => {
   it("clones when repoPath does not exist", async () => {
     mockExistsSync.mockImplementation((_p: string) => false);
 
-    await ensureRepo(githubRepo, "/repos");
+    await ensureRepo(githubRepo, TEST_REPOS_DIR);
 
     const cloneCall = spawnSpy.mock.calls.find(
       ([cmd]) => cmd[0] === "git" && cmd[1] === "clone",
     );
     expect(cloneCall).toBeDefined();
-    expect(cloneCall![0]).toContain("https://github.com/owner/myrepo.git");
-    expect(cloneCall![0]).toContain("/repos/myrepo");
+    expect(cloneCall![0]).toContain(`https://github.com/${TEST_REPO_GITHUB}.git`);
+    expect(cloneCall![0]).toContain(TEST_REPO_PATH);
   });
 
   it("fetches when repoPath already exists", async () => {
     mockExistsSync.mockImplementation((p: string) => {
-      if (p === "/repos") return true;
-      if (p === "/repos/myrepo") return true;
+      if (p === TEST_REPOS_DIR) return true;
+      if (p === TEST_REPO_PATH) return true;
       return false;
     });
 
-    await ensureRepo(githubRepo, "/repos");
+    await ensureRepo(githubRepo, TEST_REPOS_DIR);
 
     const fetchCall = spawnSpy.mock.calls.find(
       ([cmd]) => cmd[0] === "git" && cmd[1] === "fetch",
     );
     expect(fetchCall).toBeDefined();
-    expect(fetchCall![0]).toEqual(["git", "fetch", "origin", "main"]);
-    expect(fetchCall![1]).toMatchObject({ cwd: "/repos/myrepo" });
+    expect(fetchCall![0]).toEqual(["git", "fetch", "origin", TEST_BASE_BRANCH]);
+    expect(fetchCall![1]).toMatchObject({ cwd: TEST_REPO_PATH });
   });
 
   it("does not clone when repoPath already exists", async () => {
     mockExistsSync.mockImplementation((p: string) => {
-      if (p === "/repos") return true;
-      if (p === "/repos/myrepo") return true;
+      if (p === TEST_REPOS_DIR) return true;
+      if (p === TEST_REPO_PATH) return true;
       return false;
     });
 
-    await ensureRepo(githubRepo, "/repos");
+    await ensureRepo(githubRepo, TEST_REPOS_DIR);
 
     const cloneCall = spawnSpy.mock.calls.find(
       ([cmd]) => cmd[0] === "git" && cmd[1] === "clone",

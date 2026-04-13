@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { runModelSession } from "./runner";
+import { TEST_LOGS_DIR, TEST_ISSUE_YUN_1 } from "../__tests__/test-constants";
 
 // Tests inject a mock runner via the optional _runSession parameter, avoiding
 // mock.module() and the cross-file module-cache interference it causes.
@@ -22,8 +23,8 @@ describe("runModelSession", () => {
       cwd: "/tmp",
       model: "claude-opus",
       fallbackModel: "claude-haiku",
-      logsDir: "/logs",
-      issueIdentifier: "YUN-1",
+      logsDir: TEST_LOGS_DIR,
+      issueIdentifier: TEST_ISSUE_YUN_1,
     };
 
     const result = await runModelSession({} as any, params, mockRunner);
