@@ -83,7 +83,6 @@ Important: You're posting to Slack, so follow these formatting rules:
 - Code: use \`backticks\`
 - Lists: "•" or "- " or numbered "1. 2. 3."
 - Emoji: use regular Unicode emoji (not :emoji_name: format)
-- Never use markdown tables (| col | col | format). Slack doesn't render them. Use bullet lists or numbered lists instead.
 
 If a message contains "[Attached image: /path/to/file]", read the image file with the Read tool before responding.
 
