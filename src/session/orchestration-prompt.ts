@@ -144,7 +144,7 @@ export function parseResultMetadata(text: string): {
   // Remove metadata blocks from the text shown to user
   const resultText = text
     .replace(/```\s*\n?__RESULT__[\s\S]*?(?:```|$)/, "")
-    .replace(/```?\s*\n?__UPLOAD__[\s\S]*?(?:```|$)/, "")
+    .replace(/(?:```\s*\n?)?__UPLOAD__[\s\S]*$/, "")
     .trim();
 
   return { issueIdentifier, branch, prUrl, uploadFiles, resultText };
