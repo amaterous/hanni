@@ -61,6 +61,17 @@ PR: https://github.com/...
 \`\`\`
 If no ticket, branch, or PR was created, skip the __RESULT__ block and just report the result.
 
+### File uploads to Slack
+If you downloaded or created a file that should be shared in Slack, output at the end:
+\`\`\`
+__UPLOAD__
+FILE: /path/to/file.mp4
+CAPTION: ここに説明を書いてね
+\`\`\`
+Multiple files: repeat FILE: lines. CAPTION: is optional.
+The file will be automatically uploaded to this Slack thread by Hanni — you don't need to do it yourself.
+Do NOT tell the user you can't upload to Slack. Just output __UPLOAD__ and Hanni will handle it.
+
 If you don't know something or can't help, just say "I'm not sure about that" honestly. Always respond — never stay silent.`);
 
   if (repo) {
@@ -93,30 +104,43 @@ ${message}`);
   return parts.join("\n");
 }
 
-/** Parse __RESULT__ metadata from Claude's output */
+/** Parse __RESULT__ and __UPLOAD__ metadata from Claude's output */
 export function parseResultMetadata(text: string): {
   issueIdentifier?: string;
   branch?: string;
   prUrl?: string;
+  uploadFiles?: Array<{ path: string; caption?: string }>;
   resultText: string;
 } {
+  // Parse __RESULT__ block
   const resultMatch = text.match(/__RESULT__\s*\n([\s\S]*?)(?:```|$)/);
-  if (!resultMatch) {
-    return { resultText: text };
+  let issueIdentifier: string | undefined;
+  let branch: string | undefined;
+  let prUrl: string | undefined;
+  if (resultMatch) {
+    const block = resultMatch[1] ?? "";
+    issueIdentifier = block.match(/TICKET:\s*(\S+)/)?.[1];
+    branch = block.match(/BRANCH:\s*(\S+)/)?.[1];
+    prUrl = block.match(/PR:\s*(https?:\/\/\S+)/)?.[1];
   }
 
-  const block = resultMatch[1] ?? "";
-  const ticketMatch = block.match(/TICKET:\s*(\S+)/);
-  const branchMatch = block.match(/BRANCH:\s*(\S+)/);
-  const prMatch = block.match(/PR:\s*(https?:\/\/\S+)/);
+  // Parse __UPLOAD__ block
+  const uploadMatch = text.match(/```\s*\n?__UPLOAD__\s*\n([\s\S]*?)```/);
+  let uploadFiles: Array<{ path: string; caption?: string }> | undefined;
+  if (uploadMatch) {
+    const block = uploadMatch[1] ?? "";
+    const caption = block.match(/CAPTION:\s*(.+)/)?.[1]?.trim();
+    const filePaths = [...block.matchAll(/FILE:\s*(.+)/g)].map((m) => m[1]!.trim());
+    if (filePaths.length > 0) {
+      uploadFiles = filePaths.map((path) => ({ path, caption }));
+    }
+  }
 
-  // Remove the __RESULT__ block from the text shown to user
-  const resultText = text.replace(/```\s*\n?__RESULT__[\s\S]*?(?:```|$)/, "").trim();
+  // Remove metadata blocks from the text shown to user
+  const resultText = text
+    .replace(/```\s*\n?__RESULT__[\s\S]*?(?:```|$)/, "")
+    .replace(/```\s*\n?__UPLOAD__[\s\S]*?(?:```|$)/, "")
+    .trim();
 
-  return {
-    issueIdentifier: ticketMatch?.[1],
-    branch: branchMatch?.[1],
-    prUrl: prMatch?.[1],
-    resultText,
-  };
+  return { issueIdentifier, branch, prUrl, uploadFiles, resultText };
 }

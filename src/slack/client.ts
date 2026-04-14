@@ -141,6 +141,79 @@ export class SlackClient {
   }
 
   /**
+   * Upload a file to Slack from a local file path (streams the file, avoids loading into RAM).
+   * Suitable for large files (videos, etc.).
+   */
+  async uploadFileFromPath(params: {
+    channel: string;
+    threadTs?: string;
+    filePath: string;
+    title?: string;
+    initialComment?: string;
+  }): Promise<boolean> {
+    const { statSync, createReadStream } = await import("fs");
+    const { basename } = await import("path");
+
+    let stat;
+    try {
+      stat = statSync(params.filePath);
+    } catch {
+      log.error(`uploadFileFromPath: file not found: ${params.filePath}`);
+      return false;
+    }
+    const filename = basename(params.filePath);
+
+    // Step 1: Get upload URL
+    log.info(`uploadFileFromPath: step 1 getUploadURLExternal (${filename}, ${stat.size} bytes)`);
+    const urlRes = await this.slackFetch(
+      `files.getUploadURLExternal?filename=${encodeURIComponent(filename)}&length=${stat.size}`,
+    );
+    const urlJson = (await urlRes.json()) as { ok: boolean; upload_url?: string; file_id?: string; error?: string };
+    if (!urlJson.ok || !urlJson.upload_url || !urlJson.file_id) {
+      log.error(`Slack getUploadURLExternal failed: ${urlJson.error}`);
+      return false;
+    }
+    log.info(`uploadFileFromPath: step 1 done (file_id=${urlJson.file_id})`);
+
+    // Step 2: Stream file content to presigned URL
+    log.info(`uploadFileFromPath: step 2 streaming to upload URL...`);
+    const stream = createReadStream(params.filePath);
+    const putRes = await fetch(urlJson.upload_url, {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream" },
+      // @ts-ignore — Bun supports Node.js ReadableStream as fetch body
+      body: stream,
+    });
+    if (!putRes.ok) {
+      log.error(`Slack file upload failed: ${putRes.status} ${await putRes.text()}`);
+      return false;
+    }
+    log.info(`uploadFileFromPath: step 2 done`);
+
+    // Step 3: Complete upload and share to channel/thread
+    log.info(`uploadFileFromPath: step 3 completeUploadExternal (channel=${params.channel})`);
+    const completeBody: Record<string, unknown> = {
+      files: [{ id: urlJson.file_id, title: params.title ?? filename }],
+      channel_id: params.channel,
+    };
+    if (params.threadTs) completeBody.thread_ts = params.threadTs;
+    if (params.initialComment) completeBody.initial_comment = params.initialComment;
+
+    const completeRes = await this.slackFetch("files.completeUploadExternal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify(completeBody),
+    });
+    const completeJson = (await completeRes.json()) as { ok: boolean; error?: string };
+    if (!completeJson.ok) {
+      log.error(`Slack completeUploadExternal failed: ${completeJson.error}`);
+      return false;
+    }
+    log.info(`uploadFileFromPath: done!`);
+    return true;
+  }
+
+  /**
    * Set bot presence (green dot = "auto", grey = "away").
    * Requires users:write scope.
    */

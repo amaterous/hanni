@@ -106,6 +106,7 @@ export interface SessionResult {
   issueIdentifier?: string;
   branch?: string;
   prUrl?: string;
+  uploadFiles?: Array<{ path: string; caption?: string }>;
   costUsd: number;
   resultText?: string;
   testsPassed?: boolean;

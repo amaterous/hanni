@@ -332,6 +332,7 @@ export class SessionManager {
         issueIdentifier: parsed.issueIdentifier,
         branch: parsed.branch,
         prUrl: parsed.prUrl,
+        uploadFiles: parsed.uploadFiles,
         costUsd: result.costUsd,
         resultText: parsed.resultText,
       };

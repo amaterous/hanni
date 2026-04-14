@@ -411,6 +411,22 @@ async function handleMention(
         await client.postMessage(channel, metaParts.join("\n"), threadTs);
       }
 
+      // Upload files Claude wants to share in Slack
+      if (result.uploadFiles && result.uploadFiles.length > 0) {
+        for (const f of result.uploadFiles) {
+          log.info(`[${wsConfig.name}] Uploading file to Slack: ${f.path}`);
+          const ok = await client.uploadFileFromPath({
+            channel,
+            threadTs,
+            filePath: f.path,
+            initialComment: f.caption,
+          });
+          if (!ok) {
+            await client.postMessage(channel, `ファイルのアップロードに失敗しちゃった... (${f.path})`, threadTs);
+          }
+        }
+      }
+
       await client.addReaction(channel, messageTs, "white_check_mark");
     } catch (err) {
       log.error(`Failed to handle message:`, err);
