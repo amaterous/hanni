@@ -1,8 +1,8 @@
 services:
   hanni:
     build:
-      context: ..
-      dockerfile: infra/Dockerfile
+      context: hanni
+      dockerfile: ../Dockerfile
     ports:
       - "3460:3460"
       - "80:80"
