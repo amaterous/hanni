@@ -21,8 +21,7 @@ function buildLinearMcpServers(apiKey: string): McpServers {
   return {
     linear: {
       command: "npx",
-      args: ["-y", LINEAR_MCP_PACKAGE],
-      env: { LINEAR_API_TOKEN: apiKey },
+      args: ["-y", LINEAR_MCP_PACKAGE, "--token", apiKey],
     },
   };
 }
