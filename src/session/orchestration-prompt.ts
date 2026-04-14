@@ -124,8 +124,8 @@ export function parseResultMetadata(text: string): {
     prUrl = block.match(/PR:\s*(https?:\/\/\S+)/)?.[1];
   }
 
-  // Parse __UPLOAD__ block
-  const uploadMatch = text.match(/```\s*\n?__UPLOAD__\s*\n([\s\S]*?)```/);
+  // Parse __UPLOAD__ block (with or without surrounding backticks)
+  const uploadMatch = text.match(/__UPLOAD__\s*\n([\s\S]*?)(?:```|$)/);
   let uploadFiles: Array<{ path: string; caption?: string }> | undefined;
   if (uploadMatch) {
     const block = uploadMatch[1] ?? "";
@@ -139,7 +139,7 @@ export function parseResultMetadata(text: string): {
   // Remove metadata blocks from the text shown to user
   const resultText = text
     .replace(/```\s*\n?__RESULT__[\s\S]*?(?:```|$)/, "")
-    .replace(/```\s*\n?__UPLOAD__[\s\S]*?(?:```|$)/, "")
+    .replace(/```?\s*\n?__UPLOAD__[\s\S]*?(?:```|$)/, "")
     .trim();
 
   return { issueIdentifier, branch, prUrl, uploadFiles, resultText };
