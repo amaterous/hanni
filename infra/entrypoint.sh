@@ -58,7 +58,7 @@ if [ ! -f /home/hanni/.claude.json ]; then
 fi
 
 # Fix npm cache permissions (may be root-owned from previous builds)
-chown -R hanni:hanni /home/hanni/.npm 2>/dev/null || true
+timeout 5 chown -R hanni:hanni /home/hanni/.npm 2>/dev/null || true
 
 # Start hanni
 echo "Starting hanni..."
