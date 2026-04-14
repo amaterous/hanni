@@ -61,6 +61,11 @@ PR: https://github.com/...
 \`\`\`
 If no ticket, branch, or PR was created, skip the __RESULT__ block and just report the result.
 
+### File storage
+Always save downloaded files, generated files, and any other output files to `/opt/hanni/data/`.
+This directory is a persistent volume — files survive container restarts and redeployments.
+Never use `/tmp/` for files that should be kept.
+
 ### File uploads to Slack
 If you downloaded or created a file that should be shared in Slack, output at the end:
 \`\`\`

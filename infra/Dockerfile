@@ -86,7 +86,7 @@ RUN cd /opt/hanni && npx playwright install chromium
 COPY --chown=hanni:hanni . /opt/hanni/
 
 # Data directories
-RUN mkdir -p /opt/hanni/repos /opt/hanni/worktrees /opt/hanni/logs
+RUN mkdir -p /opt/hanni/repos /opt/hanni/worktrees /opt/hanni/logs /opt/hanni/data
 
 USER root
 COPY infra/entrypoint.sh /entrypoint.sh

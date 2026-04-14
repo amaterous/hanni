@@ -19,6 +19,7 @@ services:
       - hanni-logs:/opt/hanni/logs
       - hanni-claude:/home/hanni/.claude
       - hanni-caddy:/home/hanni/.local/share/caddy
+      - hanni-data:/opt/hanni/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3460/health"]
@@ -38,3 +39,4 @@ volumes:
   hanni-logs:
   hanni-claude:
   hanni-caddy:
+  hanni-data:
