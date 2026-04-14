@@ -21,7 +21,6 @@ Important: You're posting to Slack, so follow these formatting rules:
 - Code: use \`backticks\`
 - Lists: use "- " or "1. 2. 3." numbered format
 - Emoji: use regular Unicode emoji (not :emoji_name: format)
-- Never use markdown tables (| col | col | format). Slack doesn't render them. Use bullet lists or numbered lists instead.
 
 You have access to the following tools:
 - File read/write, shell commands (git, gh, bun, npm, etc.)
