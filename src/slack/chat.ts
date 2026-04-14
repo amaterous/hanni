@@ -7,11 +7,55 @@ import { SLACK_URL_INFER_MAX_TURNS, LINEAR_MCP_PACKAGE } from "../constants";
 const log = createLogger("chat");
 
 /**
+ * Convert a markdown table block to a monospace code block.
+ * Slack doesn't support tables — code blocks use fixed-width font so columns align.
+ */
+function tableToCodeBlock(tableText: string): string {
+  const lines = tableText.trim().split("\n").map((l) => l.trim());
+
+  // Parse cells, stripping leading/trailing pipes and whitespace
+  const parseCells = (line: string) =>
+    line.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+
+  const rows = lines
+    .filter((l) => !/^\|[-| :]+\|$/.test(l)) // drop separator rows
+    .map(parseCells);
+
+  if (rows.length === 0) return tableText;
+
+  // Calculate column widths
+  const colCount = Math.max(...rows.map((r) => r.length));
+  const widths = Array.from({ length: colCount }, (_, i) =>
+    Math.max(...rows.map((r) => (r[i] ?? "").length)),
+  );
+
+  const formatRow = (cells: string[]) =>
+    cells.map((c, i) => c.padEnd(widths[i] ?? 0)).join("  ").trimEnd();
+
+  const [header, ...body] = rows;
+  const separator = widths.map((w) => "─".repeat(w)).join("  ");
+
+  const formatted = [
+    formatRow(header!),
+    separator,
+    ...body.map(formatRow),
+  ].join("\n");
+
+  return "```\n" + formatted + "\n```";
+}
+
+/**
  * Convert Markdown to Slack mrkdwn format.
- * Uses slackify-markdown for full AST-based conversion (bold, italic, links, headers, lists, etc.)
+ * Tables are converted to monospace code blocks since Slack doesn't support them.
+ * Uses slackify-markdown for everything else.
  */
 export function formatForSlack(text: string): string {
-  return slackifyMarkdown(text);
+  // Replace markdown table blocks before slackify-markdown processes them
+  const withCodeTables = text.replace(
+    /((?:^\|.+\|\n?)+)/gm,
+    (match) => tableToCodeBlock(match) + "\n",
+  );
+  return slackifyMarkdown(withCodeTables);
 }
 
 /**
