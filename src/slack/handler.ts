@@ -398,6 +398,7 @@ async function handleMention(
         const truncated = formatted.length > SLACK_MESSAGE_CHAR_LIMIT
           ? formatted.slice(0, SLACK_MESSAGE_CHAR_LIMIT) + "..."
           : formatted;
+        log.info(`[${wsConfig.name}] Hanni says: "${truncated.slice(0, 120)}${truncated.length > 120 ? "..." : ""}"`);
         await client.postMessage(channel, truncated, threadTs);
       }
 

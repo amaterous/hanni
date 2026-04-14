@@ -72,9 +72,6 @@ export async function runClaudeSession(params: {
 
     const durationMs = Date.now() - startTime;
 
-    // Save messages to log file
-    appendFileSync(logFile, JSON.stringify(messages, null, 2));
-
     if (lastResult) {
       sessionId = lastResult.session_id;
       costUsd = lastResult.total_cost_usd;
@@ -87,6 +84,21 @@ export async function runClaudeSession(params: {
     } else {
       log.error(`Session ${issueIdentifier} produced no result message`);
     }
+
+    // Save structured log: prompt + metadata + all SDK messages
+    const logEntry = {
+      prompt,
+      startedAt: new Date(startTime).toISOString(),
+      model,
+      resumeSessionId: resumeSessionId ?? null,
+      sessionId,
+      success,
+      costUsd,
+      durationMs,
+      resultText,
+      messages,
+    };
+    appendFileSync(logFile, JSON.stringify(logEntry, null, 2));
 
     return { sessionId, success, costUsd, durationMs, resultText };
   } catch (err) {
