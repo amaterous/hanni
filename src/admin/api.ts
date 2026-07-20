@@ -2,6 +2,8 @@ import { readFileSync, writeFileSync, readdirSync, existsSync } from "fs";
 import { join } from "path";
 import type { HanniConfig, RepositoryConfig } from "../types";
 import type { SessionInfo } from "../types";
+import type { SessionManager } from "../session/manager";
+import { LinearClient } from "../linear/client";
 import { createLogger } from "../utils/logger";
 import { LINEAR_API_URL } from "../constants";
 
@@ -13,6 +15,7 @@ export async function handleAdminAPI(
   config: HanniConfig,
   configPath: string,
   sessions: Map<string, SessionInfo>,
+  sessionManager?: SessionManager,
 ): Promise<Response | null> {
   const path = url.pathname;
 
@@ -230,6 +233,54 @@ export async function handleAdminAPI(
     if (body.name) config.agent.name = body.name;
     persistConfig(config, configPath);
     return Response.json({ ok: true });
+  }
+
+  // GET /api/linear/tickets — fetch assigned actionable tickets from all workspaces
+  if (req.method === "GET" && path === "/api/linear/tickets") {
+    const results: { workspaceId: string; workspaceName: string; issues: unknown[] }[] = [];
+    for (const [wsId, ws] of Object.entries(config.linear.workspaces)) {
+      try {
+        const client = new LinearClient(ws.apiKey);
+        const issues = await client.listAssignedIssues(100);
+        results.push({ workspaceId: wsId, workspaceName: ws.name, issues });
+      } catch (err) {
+        log.error(`Failed to fetch tickets for workspace ${ws.name}:`, err);
+        results.push({ workspaceId: wsId, workspaceName: ws.name, issues: [] });
+      }
+    }
+    return Response.json(results);
+  }
+
+  // POST /api/sessions/bulk — trigger sessions for multiple issues
+  if (req.method === "POST" && path === "/api/sessions/bulk" && sessionManager) {
+    const body = (await req.json()) as { issues: { identifier: string; workspaceId: string }[] };
+    if (!Array.isArray(body.issues) || body.issues.length === 0) {
+      return Response.json({ error: "issues array required" }, { status: 400 });
+    }
+
+    const queued: string[] = [];
+    const skipped: string[] = [];
+
+    for (const item of body.issues) {
+      const ws = config.linear.workspaces[item.workspaceId];
+      if (!ws) { skipped.push(item.identifier); continue; }
+
+      try {
+        const client = new LinearClient(ws.apiKey);
+        const issue = await client.fetchIssueByIdentifier(item.identifier);
+        // Fire and forget — don't await so we can queue all quickly
+        sessionManager.handleNewIssue(issue, item.workspaceId).catch((err) => {
+          log.error(`Bulk session error for ${item.identifier}:`, err);
+        });
+        queued.push(item.identifier);
+        log.info(`Bulk-queued session for ${item.identifier}`);
+      } catch (err) {
+        log.error(`Failed to start session for ${item.identifier}:`, err);
+        skipped.push(item.identifier);
+      }
+    }
+
+    return Response.json({ ok: true, queued, skipped });
   }
 
   return null;

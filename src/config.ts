@@ -14,7 +14,8 @@ import {
 const DEFAULT_TOKENS_PATH = DEFAULT_TOKENS_FILE;
 
 /**
- * Build config from environment variables (for Railway / Fly.io deployment).
+ * Build config from environment variables (unused since deploy moved to Hetzner
+ * docker compose + config.json; kept as a fallback for any env-var-only setup).
  * Falls back to config.json if env vars are not set.
  *
  * Required env vars:

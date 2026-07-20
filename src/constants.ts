@@ -5,6 +5,8 @@ export const LINEAR_API_URL = "https://api.linear.app/graphql";
 // Timeouts & Intervals (ms)
 export const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 export const SCHEDULER_CHECK_INTERVAL_MS = 60 * 1000;
+export const WORKTREE_CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000;
+export const WORKTREE_MAX_AGE_DAYS = 7;
 export const SLACK_REPLAY_PROTECTION_SECONDS = 300;
 export const SCREENSHOT_WAIT_MS = 3000;
 export const SCREENSHOT_LOAD_TIMEOUT_MS = 30_000;

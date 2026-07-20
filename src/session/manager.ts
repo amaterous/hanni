@@ -51,6 +51,14 @@ export class SessionManager {
     return this.sessions;
   }
 
+  getActiveWorktreePaths(): Set<string> {
+    const paths = new Set<string>();
+    for (const [, info] of this.sessions) {
+      if (info.status === "running" && info.worktreePath) paths.add(info.worktreePath);
+    }
+    return paths;
+  }
+
   hasSession(issueId: string): boolean {
     for (const [, info] of this.sessions) {
       if (info.issueId === issueId) return true;

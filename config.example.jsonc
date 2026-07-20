@@ -62,5 +62,14 @@
         "linearApiKey": "<lin_api_xxx>"
       }
     }
+  },
+  // Optional: exposed to Claude sessions as VERCEL_TOKEN / STRIPE_SECRET_KEY_LIVE
+  // env vars at startup (see src/index.ts) so Bash tool calls (vercel CLI,
+  // Stripe API scripts) can use them.
+  "vercel": {
+    "token": "<VERCEL_TOKEN>"
+  },
+  "stripe": {
+    "secretKey": "<STRIPE_SECRET_KEY_LIVE>"
   }
 }

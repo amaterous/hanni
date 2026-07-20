@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, copyFileSync } from "fs";
+import { existsSync, mkdirSync, copyFileSync, readdirSync, statSync, rmSync } from "fs";
 import { join, resolve } from "path";
 import { slugify } from "../utils/slugify";
 import { run } from "./repo-manager";
@@ -62,4 +62,49 @@ export async function createWorktree(params: {
 
   log.info(`Created worktree ${issueIdentifier} → ${branchName}`);
   return { worktreePath, branchName };
+}
+
+/**
+ * Delete worktree directories older than maxAgeDays (by mtime), except those
+ * currently in use by an active session. Each worktree carries a full
+ * node_modules (~2GB), so without this the disk fills up (ENOSPC, 2026-07-21).
+ */
+export function cleanupStaleWorktrees(params: {
+  worktreesDir: string;
+  reposDir: string;
+  maxAgeDays: number;
+  activeWorktreePaths: Set<string>;
+}): number {
+  const { worktreesDir, reposDir, maxAgeDays, activeWorktreePaths } = params;
+  if (!existsSync(worktreesDir)) return 0;
+
+  const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+  let removed = 0;
+
+  for (const name of readdirSync(worktreesDir)) {
+    const path = resolve(worktreesDir, name);
+    try {
+      if (activeWorktreePaths.has(path)) continue;
+      const st = statSync(path);
+      if (!st.isDirectory() || st.mtimeMs > cutoff) continue;
+      rmSync(path, { recursive: true, force: true });
+      removed++;
+      log.info(`Removed stale worktree ${name}`);
+    } catch (err) {
+      log.warn(`Failed to remove stale worktree ${name}: ${err}`);
+    }
+  }
+
+  // Let git forget the deleted worktrees in each cloned repo
+  if (removed > 0 && existsSync(reposDir)) {
+    for (const repoName of readdirSync(reposDir)) {
+      const repoPath = join(reposDir, repoName);
+      if (!existsSync(join(repoPath, ".git"))) continue;
+      run(["git", "worktree", "prune"], repoPath).catch((err) => {
+        log.warn(`git worktree prune failed in ${repoName}: ${err}`);
+      });
+    }
+  }
+
+  return removed;
 }

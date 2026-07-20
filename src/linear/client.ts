@@ -187,4 +187,75 @@ export class LinearClient {
     );
     return data.viewer;
   }
+
+  async listAssignedIssues(limit = 250): Promise<{
+    id: string;
+    identifier: string;
+    title: string;
+    description: string | null;
+    stateName: string;
+    stateType: string;
+    teamId: string;
+    projectName: string | null;
+    labels: string[];
+    priority: number;
+    url: string;
+    assigneeId: string | null;
+    assigneeName: string | null;
+  }[]> {
+    const data = await this.gql<{
+      issues: {
+        nodes: Array<{
+          id: string;
+          identifier: string;
+          title: string;
+          description: string | null;
+          state: { name: string; type: string } | null;
+          team: { id: string };
+          project: { name: string } | null;
+          labels: { nodes: { name: string }[] };
+          priority: number;
+          url: string;
+          assignee: { id: string; name: string } | null;
+        }>;
+      };
+    }>(
+      `query($first: Int!) {
+        issues(
+          first: $first,
+          filter: {
+            state: { type: { in: ["backlog", "unstarted", "started"] } }
+          },
+          orderBy: updatedAt
+        ) {
+          nodes {
+            id identifier title description
+            state { name type }
+            team { id }
+            project { name }
+            labels { nodes { name } }
+            priority
+            url
+            assignee { id name }
+          }
+        }
+      }`,
+      { first: limit },
+    );
+    return data.issues.nodes.map((i) => ({
+      id: i.id,
+      identifier: i.identifier,
+      title: i.title,
+      description: i.description,
+      stateName: i.state?.name ?? "",
+      stateType: i.state?.type ?? "",
+      teamId: i.team.id,
+      projectName: i.project?.name ?? null,
+      labels: i.labels.nodes.map((l) => l.name),
+      priority: i.priority,
+      url: i.url,
+      assigneeId: i.assignee?.id ?? null,
+      assigneeName: i.assignee?.name ?? null,
+    }));
+  }
 }

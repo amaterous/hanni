@@ -1,5 +1,6 @@
 import type { HanniConfig, SessionInfo } from "./types";
 import type { LinearWebhookPayload } from "./linear/types";
+import type { SessionManager } from "./session/manager";
 import { verifyWebhookSignature } from "./webhook/signature";
 import { handleAdminAPI } from "./admin/api";
 import { createLogger } from "./utils/logger";
@@ -16,6 +17,7 @@ export function startServer(
   sessions: Map<string, SessionInfo>,
   configPath: string,
   onSlackEvent?: SlackHandler,
+  sessionManager?: SessionManager,
 ) {
   const devMode = process.env.HANNI_DEV_MODE === "true";
 
@@ -36,7 +38,7 @@ export function startServer(
           return new Response("Unauthorized", { status: 401 });
         }
       }
-      const adminRes = await handleAdminAPI(req, url, config, configPath, sessions);
+      const adminRes = await handleAdminAPI(req, url, config, configPath, sessions, sessionManager);
       if (adminRes) return adminRes;
 
       // Slack Events API

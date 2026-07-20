@@ -102,6 +102,44 @@
   .empty { text-align: center; padding: 40px; color: var(--text3); }
   .empty .icon { font-size: 32px; margin-bottom: 8px; }
 
+  /* Queue page */
+  .queue-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+  .queue-ticket { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; display: flex; align-items: flex-start; gap: 12px; cursor: pointer; transition: border-color 0.15s; }
+  .queue-ticket:hover { border-color: var(--accent); }
+  .queue-ticket.selected { border-color: var(--accent); background: rgba(139,92,246,0.08); }
+  .queue-ticket-cb { margin-top: 2px; width: 16px; height: 16px; accent-color: var(--accent); flex-shrink: 0; cursor: pointer; }
+  .queue-ticket-body { flex: 1; min-width: 0; }
+  .queue-ticket-id { font-family: monospace; font-size: 12px; color: var(--accent); font-weight: 600; }
+  .queue-ticket-title { font-size: 14px; font-weight: 500; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .queue-ticket-meta { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; align-items: center; }
+  .queue-ws { font-size: 11px; color: var(--text3); }
+  .queue-list { display: flex; flex-direction: column; gap: 8px; }
+
+  /* Tinder card */
+  .tinder-wrap { display: flex; gap: 32px; align-items: flex-start; }
+  .tinder-stage { flex: 1; min-width: 0; }
+  .tinder-card { background: var(--surface); border: 2px solid var(--border); border-radius: 16px; padding: 28px; position: relative; transition: transform 0.15s, border-color 0.15s; max-width: 520px; }
+  .tinder-card.hint-left { transform: translateX(-8px) rotate(-2deg); border-color: var(--red); }
+  .tinder-card.hint-right { transform: translateX(8px) rotate(2deg); border-color: var(--green); }
+  .tinder-card-id { font-family: monospace; font-size: 14px; color: var(--accent); font-weight: 700; margin-bottom: 8px; }
+  .tinder-card-title { font-size: 20px; font-weight: 600; line-height: 1.3; margin-bottom: 12px; }
+  .tinder-card-desc { font-size: 13px; color: var(--text2); line-height: 1.6; max-height: 120px; overflow-y: auto; margin-bottom: 14px; }
+  .tinder-card-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tinder-actions { display: flex; gap: 16px; margin-top: 20px; }
+  .tinder-btn { flex: 1; padding: 12px; border-radius: 10px; border: 2px solid; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.15s; background: transparent; }
+  .tinder-btn.skip { border-color: var(--red); color: var(--red); }
+  .tinder-btn.skip:hover { background: var(--red-bg); }
+  .tinder-btn.do { border-color: var(--green); color: var(--green); }
+  .tinder-btn.do:hover { background: var(--green-bg); }
+  .tinder-counter { text-align: center; color: var(--text3); font-size: 13px; margin-top: 12px; }
+  .tinder-queue { width: 260px; }
+  .tinder-queue h3 { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 10px; display: flex; justify-content: space-between; }
+  .tinder-queue-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; }
+  .tinder-queue-item-id { font-family: monospace; font-size: 11px; color: var(--accent); }
+  .tinder-queue-item-title { font-size: 12px; color: var(--text2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tinder-kbd { display: inline-block; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 11px; font-family: monospace; color: var(--text2); }
+  .tinder-hint { font-size: 12px; color: var(--text3); margin-top: 8px; }
+
   /* Toast */
   .toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface); border: 1px solid var(--green); color: var(--green); padding: 10px 18px; border-radius: 8px; font-size: 13px; z-index: 200; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
   .toast.show { opacity: 1; }
@@ -121,6 +159,7 @@
     </div>
     <div class="nav-section">Overview</div>
     <div class="nav-item active" onclick="showPage('dashboard')"><span class="icon">◉</span> Dashboard</div>
+    <div class="nav-item" onclick="showPage('queue')"><span class="icon">⚡</span> Queue</div>
     <div class="nav-item" onclick="showPage('sessions')"><span class="icon">⟳</span> Sessions</div>
     <div class="nav-item" onclick="showPage('logs')"><span class="icon">▤</span> Logs</div>
     <div class="nav-section">Settings</div>
@@ -200,6 +239,58 @@
       <div id="log-detail" style="display:none">
         <button class="btn btn-ghost" onclick="closeLogDetail()" style="margin-bottom:12px">← Back</button>
         <div id="log-detail-content"></div>
+      </div>
+    </div>
+
+    <!-- Queue -->
+    <div class="page" id="page-queue">
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div><h1>Queue</h1><p>Select Linear tickets to create PRs for</p></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" id="queueModeBtn" onclick="toggleQueueMode()">⟲ Swipe Mode</button>
+          <button class="btn btn-ghost" onclick="loadQueue()">↺ Refresh</button>
+        </div>
+      </div>
+
+      <!-- List mode -->
+      <div id="queue-list-mode">
+        <div class="queue-toolbar">
+          <button class="btn btn-ghost btn-sm" onclick="queueSelectAll()">Select All</button>
+          <button class="btn btn-ghost btn-sm" onclick="queueSelectNone()">Clear</button>
+          <span id="queue-selected-count" style="font-size:13px;color:var(--text2)">0 selected</span>
+          <div style="flex:1"></div>
+          <button class="btn btn-primary" onclick="startBulkSessions()" id="startSessionsBtn" disabled>Start PRs</button>
+        </div>
+        <div id="queue-list" class="queue-list"></div>
+      </div>
+
+      <!-- Tinder/swipe mode -->
+      <div id="queue-swipe-mode" style="display:none">
+        <div class="tinder-wrap">
+          <div class="tinder-stage">
+            <div id="tinder-card" class="tinder-card">
+              <div class="tinder-card-id" id="tc-id">—</div>
+              <div class="tinder-card-title" id="tc-title">Loading...</div>
+              <div class="tinder-card-desc" id="tc-desc"></div>
+              <div class="tinder-card-meta" id="tc-meta"></div>
+            </div>
+            <div class="tinder-actions">
+              <button class="tinder-btn skip" onclick="tinderSwipe('skip')">✕ Skip</button>
+              <button class="tinder-btn do" onclick="tinderSwipe('do')">✓ Queue PR</button>
+            </div>
+            <div class="tinder-counter" id="tinder-counter"></div>
+            <div class="tinder-hint">
+              <span class="tinder-kbd">←</span> Skip &nbsp;&nbsp;
+              <span class="tinder-kbd">→</span> Queue PR &nbsp;&nbsp;
+              <span class="tinder-kbd">Space</span> Queue PR
+            </div>
+          </div>
+          <div class="tinder-queue">
+            <h3>Queued <span id="tinder-queue-count" style="color:var(--accent)">0</span></h3>
+            <div id="tinder-queue-list"></div>
+            <button class="btn btn-primary" style="width:100%;margin-top:10px" onclick="startBulkSessions()" id="tinderStartBtn" disabled>Start PRs</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -363,6 +454,7 @@ function showPage(name) {
   document.getElementById('page-' + name).classList.add('active');
   event.currentTarget.classList.add('active');
   if (name === 'logs') { closeLogDetail(); loadLogs(); }
+  if (name === 'queue') { loadQueue(); }
 }
 
 function openAddRepo() { document.getElementById('addRepoModal').style.display = 'flex'; }
@@ -497,6 +589,204 @@ function closeLogDetail() {
 function escapeHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+
+// === Queue ===
+let queueTickets = []; // flat list: {identifier, title, description, stateName, stateType, workspaceId, workspaceName, labels, priority, url}
+let queueSelected = new Set(); // Set of identifiers
+let queueMode = 'list'; // 'list' | 'swipe'
+let tinderIdx = 0;
+let tinderQueued = []; // identifiers queued in swipe mode
+
+async function loadQueue() {
+  const el = document.getElementById('queue-list');
+  el.innerHTML = '<div class="empty"><div class="icon">⟳</div>Loading...</div>';
+  try {
+    const data = await fetch('/api/linear/tickets').then(r => r.json());
+    queueTickets = [];
+    for (const ws of data) {
+      for (const issue of ws.issues) {
+        queueTickets.push({ ...issue, workspaceId: ws.workspaceId, workspaceName: ws.workspaceName });
+      }
+    }
+    // Sort: priority asc (1=urgent, 0=no priority → last), then stateType
+    queueTickets.sort((a, b) => {
+      const pa = a.priority === 0 ? 99 : a.priority;
+      const pb = b.priority === 0 ? 99 : b.priority;
+      return pa - pb;
+    });
+    queueSelected = new Set();
+    if (queueMode === 'list') renderQueueList();
+    else { tinderIdx = 0; tinderQueued = []; renderTinderCard(); renderTinderQueue(); }
+  } catch (err) {
+    el.innerHTML = `<div class="empty"><div class="icon">✕</div>Failed to load: ${err}</div>`;
+  }
+}
+
+function renderQueueList() {
+  const el = document.getElementById('queue-list');
+  if (queueTickets.length === 0) {
+    el.innerHTML = '<div class="empty"><div class="icon">✓</div>No pending tickets assigned to you</div>';
+    updateQueueCount();
+    return;
+  }
+  el.innerHTML = queueTickets.map((t, i) => `
+    <div class="queue-ticket ${queueSelected.has(t.identifier) ? 'selected' : ''}" onclick="queueToggle(${i})">
+      <input type="checkbox" class="queue-ticket-cb" ${queueSelected.has(t.identifier) ? 'checked' : ''}
+        onclick="event.stopPropagation();queueToggle(${i})" />
+      <div class="queue-ticket-body">
+        <div class="queue-ticket-id">${escapeHtml(t.identifier)}</div>
+        <div class="queue-ticket-title">${escapeHtml(t.title)}</div>
+        <div class="queue-ticket-meta">
+          ${t.stateName ? `<span class="badge ${t.stateType === 'started' ? 'yellow' : 'gray'}">${escapeHtml(t.stateName)}</span>` : ''}
+          ${t.priority > 0 && t.priority <= 4 ? `<span class="badge ${['','red','yellow','blue','gray'][t.priority]}">${['','Urgent','High','Medium','Low'][t.priority]}</span>` : ''}
+          ${(t.labels || []).map(l => `<span class="badge gray">${escapeHtml(l)}</span>`).join('')}
+          <span class="queue-ws">${escapeHtml(t.workspaceName)}</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+  updateQueueCount();
+}
+
+function queueToggle(idx) {
+  const t = queueTickets[idx];
+  if (queueSelected.has(t.identifier)) queueSelected.delete(t.identifier);
+  else queueSelected.add(t.identifier);
+  renderQueueList();
+}
+
+function queueSelectAll() {
+  queueTickets.forEach(t => queueSelected.add(t.identifier));
+  renderQueueList();
+}
+
+function queueSelectNone() {
+  queueSelected.clear();
+  renderQueueList();
+}
+
+function updateQueueCount() {
+  const n = queueSelected.size;
+  document.getElementById('queue-selected-count').textContent = `${n} selected`;
+  document.getElementById('startSessionsBtn').disabled = n === 0;
+}
+
+function toggleQueueMode() {
+  if (queueMode === 'list') {
+    queueMode = 'swipe';
+    document.getElementById('queue-list-mode').style.display = 'none';
+    document.getElementById('queue-swipe-mode').style.display = '';
+    document.getElementById('queueModeBtn').textContent = '☰ List Mode';
+    tinderIdx = 0;
+    tinderQueued = [];
+    renderTinderCard();
+    renderTinderQueue();
+  } else {
+    queueMode = 'list';
+    document.getElementById('queue-list-mode').style.display = '';
+    document.getElementById('queue-swipe-mode').style.display = 'none';
+    document.getElementById('queueModeBtn').textContent = '⟲ Swipe Mode';
+    // Merge tinder queued into selected
+    tinderQueued.forEach(id => queueSelected.add(id));
+    renderQueueList();
+  }
+}
+
+function renderTinderCard() {
+  if (tinderIdx >= queueTickets.length) {
+    document.getElementById('tinder-card').innerHTML = `
+      <div style="text-align:center;padding:32px;color:var(--text3)">
+        <div style="font-size:32px;margin-bottom:12px">✓</div>
+        <div>All done! ${tinderQueued.length} ticket${tinderQueued.length !== 1 ? 's' : ''} queued.</div>
+      </div>`;
+    document.getElementById('tinder-counter').textContent = '';
+    document.querySelectorAll('.tinder-btn').forEach(b => b.disabled = true);
+    return;
+  }
+  document.querySelectorAll('.tinder-btn').forEach(b => b.disabled = false);
+  const t = queueTickets[tinderIdx];
+  document.getElementById('tc-id').textContent = t.identifier;
+  document.getElementById('tc-title').textContent = t.title;
+  document.getElementById('tc-desc').textContent = t.description || '';
+  document.getElementById('tc-meta').innerHTML = [
+    t.stateName ? `<span class="badge ${t.stateType === 'started' ? 'yellow' : 'gray'}">${escapeHtml(t.stateName)}</span>` : '',
+    t.priority > 0 && t.priority <= 4 ? `<span class="badge ${['','red','yellow','blue','gray'][t.priority]}">${['','Urgent','High','Medium','Low'][t.priority]}</span>` : '',
+    ...(t.labels || []).map(l => `<span class="badge gray">${escapeHtml(l)}</span>`),
+    `<span class="queue-ws">${escapeHtml(t.workspaceName)}</span>`,
+  ].join('');
+  document.getElementById('tinder-counter').textContent = `${tinderIdx + 1} / ${queueTickets.length}`;
+  document.getElementById('tinder-card').className = 'tinder-card';
+}
+
+function tinderSwipe(action) {
+  if (tinderIdx >= queueTickets.length) return;
+  const t = queueTickets[tinderIdx];
+  const card = document.getElementById('tinder-card');
+  card.classList.add(action === 'skip' ? 'hint-left' : 'hint-right');
+  setTimeout(() => {
+    if (action === 'do') { tinderQueued.push(t.identifier); renderTinderQueue(); }
+    tinderIdx++;
+    renderTinderCard();
+  }, 150);
+}
+
+function renderTinderQueue() {
+  document.getElementById('tinder-queue-count').textContent = tinderQueued.length;
+  document.getElementById('tinderStartBtn').disabled = tinderQueued.length === 0;
+  document.getElementById('tinder-queue-list').innerHTML = tinderQueued.slice().reverse().map(id => {
+    const t = queueTickets.find(x => x.identifier === id);
+    return `<div class="tinder-queue-item">
+      <div class="tinder-queue-item-id">${escapeHtml(id)}</div>
+      <div class="tinder-queue-item-title">${escapeHtml(t?.title || '')}</div>
+    </div>`;
+  }).join('');
+}
+
+async function startBulkSessions() {
+  const ids = queueMode === 'swipe' ? tinderQueued : Array.from(queueSelected);
+  if (ids.length === 0) { toast('No tickets selected'); return; }
+
+  const issues = ids.map(id => {
+    const t = queueTickets.find(x => x.identifier === id);
+    return { identifier: id, workspaceId: t?.workspaceId ?? '' };
+  }).filter(x => x.workspaceId);
+
+  const btn = document.getElementById(queueMode === 'swipe' ? 'tinderStartBtn' : 'startSessionsBtn');
+  btn.disabled = true;
+  btn.textContent = 'Starting...';
+
+  try {
+    const res = await fetch('/api/sessions/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ issues }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      toast(`Queued ${data.queued.length} session${data.queued.length !== 1 ? 's' : ''}${data.skipped.length ? ` (${data.skipped.length} skipped)` : ''}`);
+      queueSelected.clear();
+      tinderQueued = [];
+      if (queueMode === 'list') renderQueueList();
+      else { renderTinderQueue(); renderTinderCard(); }
+    } else {
+      toast('Error: ' + (data.error || 'Unknown'));
+    }
+  } catch (err) {
+    toast('Error: ' + err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Start PRs';
+  }
+}
+
+// Keyboard shortcuts for Tinder mode
+document.addEventListener('keydown', (e) => {
+  const swipeEl = document.getElementById('queue-swipe-mode');
+  if (!swipeEl || swipeEl.style.display === 'none') return;
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+  if (e.key === 'ArrowLeft') tinderSwipe('skip');
+  else if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); tinderSwipe('do'); }
+});
 
 load();
 loadLogs();

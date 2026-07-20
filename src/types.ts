@@ -41,6 +41,7 @@ export interface HanniConfig {
     };
   };
   vercel?: VercelConfig;
+  stripe?: StripeConfig;
   schedule?: {
     jobs?: ScheduledJob[];
   };
@@ -89,6 +90,12 @@ export interface RepositoryConfig {
 
 export interface VercelConfig {
   token: string;
+}
+
+export interface StripeConfig {
+  secretKey: string; // STRIPE_SECRET_KEY_LIVE
+  // Extra accounts, exposed as STRIPE_SECRET_KEY_LIVE_<SUFFIX> (e.g. { "CL": "sk_live_..." })
+  additionalAccounts?: Record<string, string>;
 }
 
 export interface ScheduledJob {
