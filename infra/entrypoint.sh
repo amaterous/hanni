@@ -60,6 +60,10 @@ fi
 # Fix npm cache permissions (may be root-owned from previous builds)
 timeout 5 chown -R hanni:hanni /home/hanni/.npm 2>/dev/null || true
 
+# Self-update Claude Code CLI on every start (redeploys rebuild the image at
+# whatever version was current at build time; this catches it back up)
+su - hanni -c "PATH=/home/hanni/.local/bin:\$PATH claude update" || echo "claude update failed, continuing with existing version"
+
 # Start hanni
 echo "Starting hanni..."
 exec su - hanni -c "cd /opt/hanni && CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN} PATH=/home/hanni/.local/bin:/home/hanni/.bun/bin:\$PATH bun run src/index.ts"
