@@ -20,6 +20,8 @@ export interface HanniConfig {
   claude: {
     model: string;
     fallbackModel: string;
+    thinking?: boolean;
+    effort?: "low" | "medium" | "high" | "max";
   };
   openai?: {
     provider?: "openai" | "openai-codex";

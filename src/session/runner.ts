@@ -24,6 +24,8 @@ export async function runModelSession(
     issueIdentifier: string;
     maxTurns?: number;
     mcpServers?: Record<string, { command: string; args: string[]; env?: Record<string, string> }>;
+    thinking?: boolean;
+    effort?: "low" | "medium" | "high" | "max";
   },
   _runSession: RunSessionFn = runClaudeSession,
 ): Promise<ModelSessionResult> {

@@ -23,8 +23,10 @@ export async function runClaudeSession(params: {
   issueIdentifier: string;
   maxTurns?: number;
   mcpServers?: Record<string, { command: string; args: string[]; env?: Record<string, string> }>;
+  thinking?: boolean;
+  effort?: "low" | "medium" | "high" | "max";
 }): Promise<ClaudeSessionResult> {
-  const { prompt, cwd, model, fallbackModel, resumeSessionId, logsDir, issueIdentifier, maxTurns, mcpServers } = params;
+  const { prompt, cwd, model, fallbackModel, resumeSessionId, logsDir, issueIdentifier, maxTurns, mcpServers, thinking, effort } = params;
 
   // Ensure logs directory
   const issueLogDir = join(logsDir, issueIdentifier);
@@ -56,6 +58,8 @@ export async function runClaudeSession(params: {
         resume: resumeSessionId,
         ...(maxTurns ? { maxTurns } : {}),
         ...(mcpServers ? { mcpServers } : {}),
+        ...(thinking ? { thinking: { type: "enabled" as const } } : {}),
+        ...(effort ? { effort } : {}),
       },
     });
 
