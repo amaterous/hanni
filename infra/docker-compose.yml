@@ -33,10 +33,20 @@ services:
         max-size: "50m"
         max-file: "5"
 
+# 本番データは /opt/hanni-deploy 時代に作られた hanni-deploy_* volume に入っている。
+# ディレクトリを /opt/hanni-main に改名した後もvolume名は据え置きのため、
+# 明示的に name 指定しないと compose が空の hanni-main_* を新規作成してデータが外れる
+# （2026-08-10 に一度発生。スケジューラ発火記録が消えてニュースが重複配信された）。
 volumes:
   hanni-repos:
+    name: hanni-deploy_hanni-repos
   hanni-worktrees:
+    name: hanni-deploy_hanni-worktrees
   hanni-logs:
+    name: hanni-deploy_hanni-logs
   hanni-claude:
+    name: hanni-deploy_hanni-claude
   hanni-caddy:
+    name: hanni-deploy_hanni-caddy
   hanni-data:
+    name: hanni-deploy_hanni-data
