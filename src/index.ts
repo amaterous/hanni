@@ -5,11 +5,12 @@ import { startServer } from "./server";
 import { SessionManager } from "./session/manager";
 import { createWebhookHandler } from "./webhook/handler";
 import { createSlackHandler } from "./slack/handler";
+import { formatForSlack } from "./slack/chat";
 import { SlackClient } from "./slack/client";
 import { LinearClient } from "./linear/client";
 import { createLogger } from "./utils/logger";
 import { cleanupStaleWorktrees } from "./git/worktree";
-import { HEARTBEAT_INTERVAL_MS, SCHEDULER_CHECK_INTERVAL_MS, WORKTREE_CLEANUP_INTERVAL_MS, WORKTREE_MAX_AGE_DAYS } from "./constants";
+import { HEARTBEAT_INTERVAL_MS, SCHEDULER_CHECK_INTERVAL_MS, SLACK_MESSAGE_CHAR_LIMIT, WORKTREE_CLEANUP_INTERVAL_MS, WORKTREE_MAX_AGE_DAYS } from "./constants";
 
 const log = createLogger("hanni");
 
@@ -136,7 +137,12 @@ async function main() {
             log.error(`[scheduler:${job.name}] Failed to post initial message`);
             return;
           }
-          await sessionManager.runAction({
+          // Baseline for the postResult=fallback check. Jobs without an initMessage
+          // have no message to compare against, so fall back to the wall clock —
+          // Slack ts values are unix seconds, so they are directly comparable.
+          const startTs = (Date.now() / 1000).toFixed(6);
+
+          const result = await sessionManager.runAction({
             message: job.message,
             repo: jobRepo,
             slackThread: { channel: job.channel, threadTs: initTs || "" },
@@ -144,6 +150,38 @@ async function main() {
             linearWorkspaceId: wsConfig.defaultLinearWorkspaceId,
             linearApiKey: wsConfig.linearApiKey,
           });
+
+          // Post the result to the channel (not the thread) — without this the job
+          // only ever posts initMessage, and the digest reaches Slack only when the
+          // session happens to call chat.postMessage itself (silent misses 2026-07-28).
+          // Jobs whose script posts to Slack on its own opt out with postResult: false;
+          // "fallback" posts only when the session left the channel silent.
+          let skipReason: string | undefined;
+          if (job.postResult === false) {
+            skipReason = "postResult disabled — script posts to Slack itself";
+          } else if (job.postResult === "fallback") {
+            const posted = await jobClient.hasMessageAfter(job.channel, initTs || startTs);
+            if (posted === undefined) {
+              skipReason = "postResult=fallback could not read channel history — skipping to avoid a duplicate";
+            } else if (posted) {
+              skipReason = "postResult=fallback — session already posted to the channel";
+            } else {
+              log.warn(`[scheduler:${job.name}] Session posted nothing — falling back to resultText`);
+            }
+          }
+
+          if (skipReason) {
+            log.info(`[scheduler:${job.name}] ${skipReason}`);
+          } else if (result.resultText) {
+            const formatted = formatForSlack(result.resultText);
+            const truncated = formatted.length > SLACK_MESSAGE_CHAR_LIMIT
+              ? formatted.slice(0, SLACK_MESSAGE_CHAR_LIMIT) + "..."
+              : formatted;
+            log.info(`[scheduler:${job.name}] Posting result (${truncated.length} chars) → ch:${job.channel}`);
+            await jobClient.postMessage(job.channel, truncated);
+          } else {
+            log.warn(`[scheduler:${job.name}] Session returned no resultText — nothing posted`);
+          }
         } catch (err) {
           log.error(`[scheduler:${job.name}] Failed:`, err);
         }

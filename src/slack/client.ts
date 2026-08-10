@@ -71,6 +71,30 @@ export class SlackClient {
     return json.messages ?? [];
   }
 
+  /**
+   * True if the channel has a message newer than `sinceTs`. Used to tell "the
+   * session already posted its own output" apart from "nothing was posted at
+   * all" — undefined means the check itself failed and the caller should not
+   * treat the answer as authoritative.
+   */
+  async hasMessageAfter(channel: string, sinceTs: string): Promise<boolean | undefined> {
+    const res = await this.slackFetch(
+      `conversations.history?channel=${channel}&oldest=${sinceTs}&limit=10`,
+    );
+    const json = (await res.json()) as {
+      ok: boolean;
+      messages?: { ts: string }[];
+      error?: string;
+    };
+    if (!json.ok) {
+      log.error(`Slack conversations.history failed: ${json.error}`);
+      return undefined;
+    }
+    // `oldest` is inclusive, so sinceTs itself comes back too — compare numerically
+    const since = parseFloat(sinceTs);
+    return (json.messages ?? []).some((m) => parseFloat(m.ts) > since);
+  }
+
   async addReaction(channel: string, timestamp: string, emoji: string): Promise<void> {
     await this.slackFetch("reactions.add", {
       method: "POST",

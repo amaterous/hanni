@@ -109,6 +109,11 @@ export interface ScheduledJob {
   repo?: string;            // Repository name from `repositories` (omit to run without a repo)
   message: string;          // Message passed to Claude
   initMessage?: string;     // Initial Slack post (default: "⏰ Running...")
+  // Post the session's result to the channel (default: true). Set false when the
+  // repo's own script always posts to Slack. Use "fallback" when the session is
+  // expected to post itself but silence would be a failure — the result is then
+  // posted only if nothing landed in the channel while the session ran.
+  postResult?: boolean | "fallback";
 }
 
 export interface SessionResult {
