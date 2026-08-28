@@ -1,0 +1,104 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+    # serp_yahoo/ は日次SERPキャプチャの機械生成データ（serp-daily.yml が毎朝PRを出す）。
+    # データだけのPRにフルレビューを回すとトークンを毎日消費するので除外する。
+    # コードと混在するPRは通常どおりレビューされる。
+    paths-ignore:
+      - "serp_yahoo/**"
+    # Optional: Only run on specific file changes
+    # paths:
+    #   - "src/**/*.ts"
+    #   - "src/**/*.tsx"
+    #   - "src/**/*.js"
+    #   - "src/**/*.jsx"
+
+jobs:
+  claude-review:
+    # serp/ ブランチ（日次SERPデータの自動PR）はレビュー対象外。
+    # データのみのPRで、作成直後に自動マージされるため（scripts/serp/daily-local.sh）、
+    # レビューを走らせてもトークンの無駄になる。
+    if: ${{ !startsWith(github.head_ref, 'serp/') }}
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        id: claude-review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
+          plugins: 'code-review@claude-code-plugins'
+          # --comment必須: 付けないとプラグインの最終ターンがTodoWrite呼び出しで終わり、
+          # レビュー本文は生成済みなのに result が空になって投稿されない
+          # (upstream既知バグ: anthropics/claude-code-action#1087)。
+          # スラッシュコマンドは必ずプロンプトの先頭に置く。前に別の文を置くと
+          # コマンド展開されず、レビュー本体が実行されないまま数ターンで終了する
+          # (2026-07-20: 日本語指示を1行目に置いた2回とも 未投稿+verdict欠落で失敗)。
+          prompt: |
+            /code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
+
+            追加指示:
+            - レビューコメントは日本語で書いてください。
+            - サブエージェント(Agentツール)を使う場合は必ず run_in_background: false の
+              同期実行にしてください。バックグラウンドで起動して「完了を待つ」と言って
+              ターンを終えると、CI(ヘッドレス実行)ではそこでプロセスごと終了し、
+              レビュー未完・verdict欠落で必ず失敗します(2026-07-21に2回連続で発生)。
+            - レビューコメントの投稿が終わったら、最後に必ずカレントディレクトリ直下の
+              review-verdict.txt に判定を1行だけ書き込んでください:
+              - 修正が必要な確定した指摘(CONFIRMED相当)が1件以上ある場合: CHANGES_REQUESTED
+              - 指摘が0件、または情報提供・軽微な提案のみの場合: APPROVED
+              - このPRに対して既にレビュー済みと判断してレビュー自体をスキップした場合: SKIPPED_ALREADY_REVIEWED
+          # code-review プラグインは内部でReportFindings等の追加ツールも呼ぶため、
+          # allowedToolsを個別指定すると漏れが出て「permission deniedのまま黙って
+          # 投稿されず終了する」事故が起きる（2026-07-17実際に発生・19回denied）。
+          # このワークフローは synchronize イベントでPRの差分を読んで自動実行される＝
+          # 将来外部コントリビューターのPRが来た場合はプロンプトインジェクションの
+          # リスクがある点は認識した上で、現状は自分のPRのみのため全許可を選択。
+          claude_args: |
+            --model claude-sonnet-5
+            --dangerously-skip-permissions
+          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
+          # or https://code.claude.com/docs/en/cli-reference for available options
+
+      # 未投稿・verdict欠落の調査用: Claudeの実行トランスクリプトを保存する
+      - name: Upload Claude execution log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-execution-log
+          path: /home/runner/work/_temp/claude-execution-output.json
+          if-no-files-found: ignore
+
+      # レビューで指摘があったらジョブを赤にする。
+      # 「コメント投稿成功=CI緑」だと指摘を読まずに反射でマージしてしまうため、
+      # 指摘の有無をジョブの成否に反映させる(2026-07-20導入)。
+      # 判定ファイルが無い場合も安全側に倒して赤にする(判定不能=要人間確認)。
+      # SKIPPED_ALREADY_REVIEWED(=このPRは既にレビュー済みと判断して今回は
+      # スキップ)はAPPROVEDと同じくpass扱いにする。これが無いと、一度レビュー
+      # コメントを投稿した後の再実行(指摘を直して再pushした場合等)が毎回赤に
+      # なってしまう(2026-07-20発覚)。
+      - name: Fail if review has findings
+        run: |
+          verdict=$(head -1 review-verdict.txt 2>/dev/null | tr -d '[:space:]' || true)
+          echo "review verdict: ${verdict:-MISSING}"
+          if [ "$verdict" = "APPROVED" ] || [ "$verdict" = "SKIPPED_ALREADY_REVIEWED" ]; then
+            echo "レビュー指摘なし(または既レビュー済みでスキップ)。マージ可。"
+          else
+            echo "::error::Claudeレビューで指摘あり(または判定ファイル欠落)。PRのレビューコメントを確認して対応してください。"
+            exit 1
+          fi
+
