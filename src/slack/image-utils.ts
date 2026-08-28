@@ -10,6 +10,7 @@ export interface SlackFile {
   url_private: string;
   name: string;
   filetype?: string;
+  size?: number;
   // Slack-generated JPEG thumbnails (always JPEG regardless of original format)
   thumb_1024?: string;
   thumb_720?: string;

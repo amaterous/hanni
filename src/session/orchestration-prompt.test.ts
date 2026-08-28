@@ -14,6 +14,12 @@ describe("buildOrchestrationPrompt", () => {
     expect(result).toContain("Yun");
   });
 
+  test("instructs Claude to read [Attached file:] paths with the Read tool", () => {
+    const result = buildOrchestrationPrompt(base);
+    expect(result).toContain("[Attached file:");
+    expect(result).toContain("[Attached image:");
+  });
+
   test("includes message at the end", () => {
     const result = buildOrchestrationPrompt(base);
     expect(result).toContain("please test this");

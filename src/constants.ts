@@ -13,6 +13,7 @@ export const SCREENSHOT_LOAD_TIMEOUT_MS = 30_000;
 
 // Slack limits
 export const SLACK_THREAD_FETCH_LIMIT = 200;
+export const SLACK_FILE_MAX_BYTES = 25 * 1024 * 1024;
 export const SLACK_MESSAGE_CHAR_LIMIT = 40000;
 export const SLACK_URL_INFER_MAX_TURNS = 10;
 
