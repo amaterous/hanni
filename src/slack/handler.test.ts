@@ -147,6 +147,55 @@ describe("createSlackHandler", () => {
     expect(await res.text()).toBe("ok");
   });
 
+  test("downloads non-image attachments (PDF) and passes [Attached file:] path to the session", async () => {
+    process.env.HANNI_DEV_MODE = "true";
+    const fetchSpy = spyOn(globalThis, "fetch").mockImplementation((async (url: RequestInfo | URL) => {
+      if (String(url).includes("files.slack.com")) {
+        return new Response(Buffer.from("%PDF-1.4 test"), {
+          headers: { "Content-Type": "application/pdf" },
+        });
+      }
+      return new Response(JSON.stringify({ ok: true, messages: [], ts: "1111" }));
+    }) as unknown as typeof fetch);
+
+    const handler = createSlackHandler(mockSessionManager as any, makeConfig());
+    const body = JSON.stringify({
+      type: "event_callback",
+      team_id: TEAM_ID,
+      event: {
+        type: "app_mention",
+        text: `<@${TEST_SLACK_BOT_USER_ID}> このPDF要約して`,
+        user: "U_TEST",
+        channel: "C1",
+        ts: "1234",
+        thread_ts: "1234",
+        files: [
+          {
+            id: "FPDF1",
+            mimetype: "application/pdf",
+            url_private: "https://files.slack.com/files-pri/T1-FPDF1/paper.pdf",
+            name: "paper.pdf",
+          },
+        ],
+      },
+    });
+
+    const res = await handler(makeRequest(body));
+    expect(res.status).toBe(200);
+
+    // handleMention is fire-and-forget — poll until runAction is called
+    const deadline = Date.now() + 3000;
+    while (mockSessionManager.runAction.mock.calls.length === 0 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    expect(mockSessionManager.runAction.mock.calls.length).toBe(1);
+    const params = (mockSessionManager.runAction.mock.calls[0] as unknown as [{ message: string }])[0];
+    expect(params.message).toContain("このPDF要約して");
+    expect(params.message).toMatch(/\[Attached file: \/tmp\/[^\]]*paper\.pdf\]/);
+
+    fetchSpy.mockRestore();
+  });
+
   test("returns ok immediately for app_mention (fire-and-forget)", async () => {
     process.env.HANNI_DEV_MODE = "true";
     // Mock fetch so SlackClient calls don't fail

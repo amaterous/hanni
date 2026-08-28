@@ -85,6 +85,7 @@ Important: You're posting to Slack, so follow these formatting rules:
 - Emoji: use regular Unicode emoji (not :emoji_name: format)
 
 If a message contains "[Attached image: /path/to/file]", read the image file with the Read tool before responding.
+If a message contains "[Attached file: /path/to/file]", read that file with the Read tool before responding — it supports PDFs and text files (snippets, code, etc.). Never guess contents from the filename.
 
 Classify the following message:
 

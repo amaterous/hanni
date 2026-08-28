@@ -8,6 +8,7 @@ import { takeScreenshot } from "../utils/screenshot";
 import { runModelSession } from "../session/runner";
 import { createLogger } from "../utils/logger";
 import { type SlackFile, downloadSlackImage } from "./image-utils";
+import { downloadSlackFile } from "./file-utils";
 import {
   SLACK_MESSAGE_CHAR_LIMIT,
   SLACK_URL_INFER_MAX_TURNS,
@@ -150,8 +151,12 @@ export function createSlackHandler(
 
       // Download attached images to temp files
       const imagePaths: string[] = [];
+      const filePaths: string[] = [];
       const imageFiles = (event.files ?? []).filter((f) =>
         f.mimetype?.startsWith("image/"),
+      );
+      const otherFiles = (event.files ?? []).filter(
+        (f) => !f.mimetype?.startsWith("image/"),
       );
       if (imageFiles.length > 0) {
         const tmpDir = join("/tmp", `hanni-images-${Date.now()}`);
@@ -168,9 +173,25 @@ export function createSlackHandler(
           }
         }
       }
+      // Download non-image attachments (PDFs, snippets, text files, etc.)
+      if (otherFiles.length > 0) {
+        const tmpDir = join("/tmp", `hanni-files-${Date.now()}`);
+        mkdirSync(tmpDir, { recursive: true });
+        for (const file of otherFiles) {
+          try {
+            const filePath = await downloadSlackFile(file, tmpDir, wsConfig.botToken!);
+            if (filePath) {
+              filePaths.push(filePath);
+              log.info(`Downloaded file: ${file.name} → ${filePath}`);
+            }
+          } catch (err) {
+            log.error(`Failed to download file ${file.name}:`, err);
+          }
+        }
+      }
 
       // Fire and forget
-      handleMention(event.text, event.channel, threadTs, event.ts, event.user, activeClient, sessionManager, config, wsConfig, imagePaths).catch(
+      handleMention(event.text, event.channel, threadTs, event.ts, event.user, activeClient, sessionManager, config, wsConfig, imagePaths, filePaths).catch(
         (err) => log.error("Slack handler error:", err),
       );
 
@@ -182,17 +203,18 @@ export function createSlackHandler(
 }
 
 /**
- * Fetch thread history, resolve user names, and download images from the thread.
- * Returns { threadContext, imagePaths } — imagePaths includes the initial paths plus
- * any new images found in earlier thread messages.
+ * Fetch thread history, resolve user names, and download attachments from the thread.
+ * Returns { threadContext, imagePaths, filePaths } — each includes the initial paths
+ * plus any new attachments found in earlier thread messages.
  */
 async function gatherThreadContext(
   client: SlackClient,
   channel: string,
   threadTs: string,
   initialImagePaths: string[],
+  initialFilePaths: string[],
   botToken: string | undefined,
-): Promise<{ threadContext: string; imagePaths: string[] }> {
+): Promise<{ threadContext: string; imagePaths: string[]; filePaths: string[] }> {
   const threadMessages = await client.getThreadMessages(channel, threadTs);
 
   // Build text context from the last 200 messages
@@ -203,36 +225,61 @@ async function gatherThreadContext(
     contextLines.push(`${name}: ${cleaned}`);
   }
 
-  // Download images attached to earlier thread messages (dedup against already-downloaded ones)
+  // Download attachments from earlier thread messages (dedup against already-downloaded ones)
   const imagePaths = [...initialImagePaths];
+  const filePaths = [...initialFilePaths];
   if (botToken) {
-    const existingNames = new Set(imagePaths.map((p) => p.split("/").pop() ?? ""));
+    const existingNames = new Set(
+      [...imagePaths, ...filePaths].map((p) => p.split("/").pop() ?? ""),
+    );
     const threadTmpDir = join("/tmp", `hanni-thread-images-${Date.now()}`);
+    const threadFileTmpDir = join("/tmp", `hanni-thread-files-${Date.now()}`);
     let threadTmpDirCreated = false;
+    let threadFileTmpDirCreated = false;
+    // Downloaded paths embed the Slack file id, so dedup by id too
+    const existingIds = new Set(
+      [...imagePaths, ...filePaths]
+        .map((p) => (p.split("/").pop() ?? "").split(/[.-]/)[0] ?? ""),
+    );
     for (const msg of threadMessages) {
       if (!msg.files) continue;
       for (const file of msg.files) {
-        if (!file.mimetype?.startsWith("image/")) continue;
-        if (existingNames.has(file.name)) continue;
+        if (existingNames.has(file.name) || existingIds.has(file.id)) continue;
+        const isImage = !!file.mimetype?.startsWith("image/");
         try {
-          if (!threadTmpDirCreated) {
-            mkdirSync(threadTmpDir, { recursive: true });
-            threadTmpDirCreated = true;
-          }
-          const filePath = await downloadSlackImage(file as SlackFile, threadTmpDir, botToken);
-          if (filePath) {
-            imagePaths.push(filePath);
-            existingNames.add(file.name);
-            log.info(`Downloaded thread image: ${file.name} → ${filePath} (via ${file.thumb_1024 ? "thumb_1024" : file.thumb_720 ? "thumb_720" : "url_private"})`);
+          if (isImage) {
+            if (!threadTmpDirCreated) {
+              mkdirSync(threadTmpDir, { recursive: true });
+              threadTmpDirCreated = true;
+            }
+            const filePath = await downloadSlackImage(file as SlackFile, threadTmpDir, botToken);
+            if (filePath) {
+              imagePaths.push(filePath);
+              existingNames.add(file.name);
+              existingIds.add(file.id);
+              log.info(`Downloaded thread image: ${file.name} → ${filePath} (via ${file.thumb_1024 ? "thumb_1024" : file.thumb_720 ? "thumb_720" : "url_private"})`);
+            }
+          } else {
+            if (!threadFileTmpDirCreated) {
+              mkdirSync(threadFileTmpDir, { recursive: true });
+              threadFileTmpDirCreated = true;
+            }
+            const filePath = await downloadSlackFile(file as SlackFile, threadFileTmpDir, botToken);
+            if (filePath) {
+              filePaths.push(filePath);
+              existingNames.add(file.name);
+              existingIds.add(file.id);
+              log.info(`Downloaded thread file: ${file.name} → ${filePath}`);
+            }
           }
         } catch (err) {
-          log.error(`Failed to download thread image ${file.name}:`, err);
+          log.error(`Failed to download thread attachment ${file.name}:`, err);
         }
       }
     }
   }
 
-  return { threadContext: contextLines.join("\n"), imagePaths };
+  return { threadContext: contextLines.join("\n"), imagePaths, filePaths };
 }
 
 /**
@@ -247,8 +294,8 @@ async function handleScreenshotCommand(
   channel: string,
   threadTs: string,
 ): Promise<boolean> {
-  // Strip [Attached image: ...] lines before matching keywords to avoid false positives on image filenames
-  const rawTextWithoutImagePaths = rawText.replace(/\[Attached image:[^\]]+\]/g, "");
+  // Strip [Attached image/file: ...] lines before matching keywords to avoid false positives on filenames
+  const rawTextWithoutImagePaths = rawText.replace(/\[Attached (?:image|file):[^\]]+\]/g, "");
   if (!rawTextWithoutImagePaths.match(SCREENSHOT_KEYWORDS_RE)) return false;
 
   // Slack wraps URLs as <https://example.com|label> — extract the bare URL
@@ -341,25 +388,30 @@ async function handleMention(
   config: HanniConfig,
   wsConfig: SlackWorkspaceConfig,
   initialImagePaths: string[] = [],
+  initialFilePaths: string[] = [],
 ) {
   try {
     // Strip bot mention to get raw message
     let rawText = text.replace(/<@[A-Z0-9]+>/g, "").trim();
 
-    if (!rawText && initialImagePaths.length === 0) {
+    if (!rawText && initialImagePaths.length === 0 && initialFilePaths.length === 0) {
       await client.postMessage(channel, "Hmm?", threadTs);
       return;
     }
 
-    // Fetch thread history and collect all images (including from earlier messages)
-    const { threadContext, imagePaths } = await gatherThreadContext(
-      client, channel, threadTs, initialImagePaths, wsConfig.botToken,
+    // Fetch thread history and collect all attachments (including from earlier messages)
+    const { threadContext, imagePaths, filePaths } = await gatherThreadContext(
+      client, channel, threadTs, initialImagePaths, initialFilePaths, wsConfig.botToken,
     );
 
-    // Append image file paths so Claude can read them
-    if (imagePaths.length > 0) {
-      const imageNote = imagePaths.map((p) => `[Attached image: ${p}]`).join("\n");
-      rawText = rawText ? `${rawText}\n\n${imageNote}` : imageNote;
+    // Append attachment paths so Claude can read them
+    const attachmentNotes = [
+      ...imagePaths.map((p) => `[Attached image: ${p}]`),
+      ...filePaths.map((p) => `[Attached file: ${p}]`),
+    ];
+    if (attachmentNotes.length > 0) {
+      const note = attachmentNotes.join("\n");
+      rawText = rawText ? `${rawText}\n\n${note}` : note;
     }
 
     // Screenshot command — handle before Claude (fast & cheap, no LLM needed)
